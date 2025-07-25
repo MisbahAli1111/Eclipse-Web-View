@@ -1,70 +1,39 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Animated, Image, StyleSheet, View } from 'react-native';
-import { WebView } from 'react-native-webview';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+// App.js
+import React, { useEffect, useState } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import LoginScreen from './src/screens/loginscreen';
+import SplashScreen from './src/screens/splashscreen';
 
-const App = () => {
-  const [loading, setLoading] = useState(true);
-  const fadeAnim = useRef(new Animated.Value(0)).current; // Initial opacity: 0
+const Stack = createNativeStackNavigator();
+
+export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    // Start fade-in animation
-    Animated.timing(fadeAnim, {
-      toValue: 1, // Fully visible
-      duration: 1000, // 1 second fade-in
-      useNativeDriver: true,
-    }).start();
-
-    // Hide splash after 2 seconds
-    const splashTimeout = setTimeout(() => {
-      setLoading(false);
+    const timer = setTimeout(() => {
+      setShowSplash(false); // after 2 sec, show login
     }, 2000);
 
-    return () => clearTimeout(splashTimeout);
+    return () => clearTimeout(timer);
   }, []);
-
-  const onShouldStartLoadWithRequest = (event) => {
-    return event.url.startsWith('https://test.stg-tenant.eclipsescheduling.com/v1'); // Allow only app domain
-  };
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        {loading ? (
-          <Animated.View style={[styles.loaderContainer, { opacity: fadeAnim }]}>
-            <Image source={require('./assets/logo.png')} style={styles.splashImage} />
-          </Animated.View>
+      <NavigationContainer>
+        {showSplash ? (
+          <SplashScreen />
         ) : (
-          <WebView
-            source={{ uri: 'https://test.stg-tenant.eclipsescheduling.com/v1/login' }}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            cacheEnabled={true}
-            sharedCookiesEnabled={true}
-            mixedContentMode="always"
-            onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-          />
+          <Stack.Navigator
+            initialRouteName="Login"
+            screenOptions={{
+              headerShown: false,
+            }}>
+            <Stack.Screen name="Login" component={LoginScreen} />
+          </Stack.Navigator>
         )}
-      </SafeAreaView>
+      </NavigationContainer>
     </SafeAreaProvider>
   );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  splashImage: {
-    width: 150,
-    height: 150,
-    resizeMode: 'contain',
-  },
-});
-
-export default App;
+}
