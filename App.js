@@ -1,38 +1,29 @@
-// App.js
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import LoginScreen from './src/screens/loginscreen';
 import SplashScreen from './src/screens/splashscreen';
+import LoginScreen from './src/screens/loginscreen';
+import DashboardScreen from './src/screens/DashboardScreen';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowSplash(false); // after 2 sec, show login
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        {showSplash ? (
-          <SplashScreen />
-        ) : (
-          <Stack.Navigator
-            initialRouteName="Login"
-            screenOptions={{
-              headerShown: false,
-            }}>
-            <Stack.Screen name="Login" component={LoginScreen} />
-          </Stack.Navigator>
-        )}
+        <Stack.Navigator
+          initialRouteName="Splash"
+          screenOptions={{ headerShown: false }}
+        >
+          <Stack.Screen name="Splash" component={SplashScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen 
+            name="Dashboard" 
+            component={DashboardScreen}
+            options={{ gestureEnabled: false }} // Prevent swipe back to login
+          />
+        </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
   );

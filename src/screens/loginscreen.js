@@ -1,3 +1,4 @@
+
 // screens/LoginScreen.js
 import React, { useState, useEffect } from 'react';
 import {
@@ -10,12 +11,24 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import ReactNativeBiometrics from 'react-native-biometrics';
 import * as Keychain from 'react-native-keychain'; // NEW: For secure credential storage
+import AsyncStorage from '@react-native-async-storage/async-storage'; // NEW: For session management
+import { AppState } from 'react-native';
+import { SessionService } from '../services/session'; // Import your session service
+import { WebViewComponent } from '../components/WebviewComponent';
+import { LoginForm } from '../components/LoginForm';
+import { BiometricModal } from '../components/BiometricModal';
+import { TenantModal } from '../components/TenantModal';
+import { AuthService } from '../services/api/AuthService';
+import { TenantService } from '../services/api/TenantService';
+import { BiometricService } from '../services/api/BiometricService';
+
 
 // NEW: Create biometric instance once
 const rnBiometrics = new ReactNativeBiometrics();
@@ -36,317 +49,265 @@ export default function LoginScreen({ navigation }) {
   const [isEnrollingBiometric, setIsEnrollingBiometric] = useState(false);
   const [tempCredentials, setTempCredentials] = useState(null); // To hold credentials during enrollment
 
-  
+
+  // Top of file (after imports)
+const SESSION_KEYS = ['@last_active', '@current_tenant', '@user_email'];
+  // Add this constant near your other constants
+const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 30 days in production  
 
 
-      
-  
-  
-      // NEW: Check biometric support on component mount
+  // Check for auto-login on component mount
         useEffect(() => {
-        const initBiometrics = async () => {
-          try {
-            // Check biometric support
-            const { available, biometryType } = await rnBiometrics.isSensorAvailable();
-            setIsBiometricSupported(available);
-            setBiometricType(biometryType);
-            
-            // Check for existing enrollment
-            const credentials = await Keychain.getGenericPassword({
-              service: 'com.EclipseAppView.auth'
-            });
-            
-            if (credentials) {
-              setEmail(credentials.username);
-              console.log('Found existing biometric enrollment');
-            }
-          } catch (error) {
-            console.error('Initialization error:', error);
-          } finally {
-            setIsBiometricChecked(true);
-          }
-        };
+              console.log('[Login] Component mounted - checking for auto-login');
+              const checkAutoLogin = async () => {
+                console.log('[Login] Checking session validity');
+                const isValid = await SessionService.isSessionValid();
+                console.log(`[Login] Session validity: ${isValid}`);
+                
+                if (isValid) {
+                  console.log('[Login] Valid session found, getting tenant ID');
+                  const tenantId = await SessionService.getTenantId();
+                  console.log(`[Login] Tenant ID retrieved: ${tenantId || 'none'}`);
+                  
+                  if (tenantId) {
+                    console.log('[Login] Navigating to Dashboard with tenant URL');
+                    navigation.replace('Dashboard', {
+                      webViewUrl: `https://${tenantId}.stg-tenant.eclipsescheduling.com/v1/provider/dashboard`
+                    });
+                  }
+                }
+              };
+              checkAutoLogin();
+            }, [navigation]);
 
-        initBiometrics();
-      }, []);
+            // App state handler
+            useEffect(() => {
+              console.log('[Login] Setting up app state listener');
+              const handleAppStateChange = async (nextAppState) => {
+                console.log(`[Login] App state changed to: ${nextAppState}`);
+                
+                if (nextAppState === 'active') {
+                  console.log('[Login] App became active, checking session');
+                  const isValid = await SessionService.isSessionValid();
+                  console.log(`[Login] Session validity: ${isValid}`);
+                  
+                  if (!isValid) {
+                    console.log('[Login] Invalid session, clearing and hiding WebView');
+                    await SessionService.clearSession();
+                    setShowWebView(false);
+                  }
+                }
+              };
 
+              const subscription = AppState.addEventListener('change', handleAppStateChange);
+              return () => {
+                console.log('[Login] Cleaning up app state listener');
+                subscription.remove();
+              };
+            }, []);
 
+            // Biometrics initialization
+            useEffect(() => {
+              console.log('[Login] Initializing biometric authentication');
+              const initBiometrics = async () => {
+                try {
+                  console.log('[Login] Checking biometric sensor availability');
+                  const { available, biometryType } = await rnBiometrics.isSensorAvailable();
+                  console.log(`[Login] Biometric available: ${available}, type: ${biometryType}`);
+                  
+                  setIsBiometricSupported(available);
+                  setBiometricType(biometryType);
+                  
+                  console.log('[Login] Checking for saved credentials');
+                  const credentials = await AuthService.getSavedCredentials();
+                  console.log(`[Login] Saved credentials found: ${!!credentials}`);
+                  
+                  if (credentials) {
+                    console.log('[Login] Setting email from saved credentials');
+                    setEmail(credentials.username);
+                  }
+                } catch (error) {
+                  console.error('[Login] Biometric initialization error:', error);
+                } finally {
+                  console.log('[Login] Biometric check completed');
+                  setIsBiometricChecked(true);
+                }
+              };
 
-  // NEW: Check if biometric auth is available
-  const checkBiometricSupport = async () => {
-    try {
-      const { available, biometryType } = await rnBiometrics.isSensorAvailable();
-      setIsBiometricSupported(available);
-      setBiometricType(biometryType);
-      console.log(`Biometrics available: ${available}, type: ${biometryType}`);
-    } catch (error) {
-      console.error('Biometric check error:', error);
-    }
-  };
+              initBiometrics();
+            }, []);
 
-  // NEW: Load saved credentials if they exist
-  const loadSavedCredentials = async () => {
-    try {
-      const credentials = await Keychain.getGenericPassword();
-      if (credentials) {
-        setEmail(credentials.username);
-        // Don't set password here for security
-      }
-    } catch (error) {
-      console.error('Failed to load credentials:', error);
-    }
-  };
+            const updateLastActive = async () => {
+              const now = Date.now();
+              console.log(`[Login] Updating last active time: ${new Date(now).toISOString()}`);
+              await AsyncStorage.setItem('@last_active', now.toString());
+            };
 
-  // NEW: Handle biometric authentication
-           const handleBiometricLogin = async () => {
-            if (!isBiometricSupported) {
-              alert('Biometric authentication not available');
-              return;
-            }
-
-            try {
-              // Retrieve saved credentials
-              const credentials = await Keychain.getGenericPassword({
-                service: 'com.EclipseAppView.auth'
-              });
-              
-              if (!credentials) {
-                alert('No enrolled fingerprint found. Please login with email/password first.');
+            // Handle biometric login
+            const handleBiometricLogin = async () => {
+              console.log('[Login] Biometric login initiated');
+              if (!isBiometricSupported) {
+                console.log('[Login] Biometrics not supported on this device');
+                Alert.alert('Error', 'Biometric authentication not available');
                 return;
               }
 
-              // Authenticate with biometrics
-              const { success } = await rnBiometrics.simplePrompt({
-                promptMessage: 'Authenticate to login',
-                cancelButtonText: 'Cancel'
-              });
-
-              if (success) {
-                // Set credentials in state
-                setEmail(credentials.username);
-                setPassword(credentials.password);
+              try {
+                console.log('[Login] Retrieving saved credentials');
+                const credentials = await AuthService.getSavedCredentials();
                 
-                // Directly fetch tenants without going through handleLogin()
-                setIsLoading(true);
-                try {
-                  const response = await fetch('https://test.stg-tenant.eclipsescheduling.com/api/tenant-users/search', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({ email: credentials.username }),
-                  });
+                if (!credentials) {
+                  console.log('[Login] No biometric enrollment found');
+                  Alert.alert('Error', 'No enrolled fingerprint found. Please login with email/password first.');
+                  return;
+                }
 
-                  const data = await response.json();
+                console.log('[Login] Starting biometric authentication prompt');
+                const success = await BiometricService.authenticate('Authenticate to login');
+                
+                if (success) {
+                  console.log('[Login] Biometric authentication successful');
+                  console.log('[Login] Setting credentials in state');
+                  setEmail(credentials.username);
+                  setPassword(credentials.password);
                   
-                  if (data.success) {
-                    setTenants(data.data);
-                    if (data.count === 1) {
-                      handleTenantSelect(data.data[0]);
-                    } else if (data.count > 1) {
+                  setIsLoading(true);
+                  try {
+                    console.log('[Login] Fetching tenant information');
+                    const { tenants, count } = await TenantService.getTenants(credentials.username);
+                    console.log(`[Login] Found ${count} tenants`);
+                    
+                    setTenants(tenants);
+                    if (count === 1) {
+                      console.log('[Login] Single tenant found, proceeding with login');
+                      const { token, webViewUrl } = await AuthService.getToken(tenants[0].tenant_id, credentials.username, credentials.password);
+                      navigation.replace('Dashboard', { webViewUrl });
+                    } else if (count > 1) {
+                      console.log('[Login] Multiple tenants found, showing selection');
                       setShowTenantModal(true);
                     }
-                  } else {
-                    alert(data.message || 'Failed to fetch tenant information');
+                  } catch (error) {
+                    console.error('[Login] Tenant fetch error:', error);
+                    Alert.alert('Error', error.message || 'Failed to fetch tenant information');
+                  } finally {
+                    setIsLoading(false);
                   }
-                } catch (error) {
-                  console.error('Tenant fetch error:', error);
-                  alert('Failed to fetch tenant information');
-                } finally {
-                  setIsLoading(false);
+                } else {
+                  console.log('[Login] Biometric authentication cancelled or failed');
                 }
+              } catch (error) {
+                console.error('[Login] Biometric authentication error:', error);
+                Alert.alert('Error', `Authentication failed: ${error.message}`);
               }
-            } catch (error) {
-              console.error('Biometric auth error:', error);
-              alert(`Authentication failed: ${error.message}`);
-            }
-          };
+            };
 
-  // NEW: Save credentials after successful login
-  const saveCredentials = async () => {
-    try {
-      await Keychain.setGenericPassword(email, password);
-      console.log('Credentials saved securely');
-    } catch (error) {
-      console.error('Failed to save credentials:', error);
-    }
-  };
+            // Handle tenant selection
+            const handleTenantSelect = async (tenant) => {
+              console.log(`[Login] Tenant selected: ${tenant.tenant_id}`);
+              setShowTenantModal(false);
+              setIsLoading(true);
 
+              try {
+                console.log('[Login] Getting token for selected tenant');
+                const { token, webViewUrl } = await AuthService.getToken(tenant.tenant_id, email, password);
+                console.log('[Login] Token received, setting WebView URL');
+                setWebViewUrl(webViewUrl);
+                setShowWebView(true);
+                console.log('[Login] Navigating to Dashboard');
+                navigation.replace('Dashboard');
+              } catch (error) {
+                console.error('[Login] Tenant selection error:', error);
+                alert(`Login failed: ${error.message}`);
+              } finally {
+                setIsLoading(false);
+              }
+            };
 
+            // Handle regular login
+            const handleLogin = async () => {
+              console.log(`[Login] Login initiated for email: ${email}`);
+              if (!email || !password) {
+                console.log('[Login] Validation failed - empty email or password');
+                Alert.alert('Error', 'Please enter both email and password');
+                return;
+              }
 
+              setIsLoading(true);
+              try {
+                console.log('[Login] Searching for tenants');
+                const { tenants, count } = await TenantService.getTenants(email);
+                console.log(`[Login] Found ${count} tenants`);
+                
+                setTenants(tenants);
+                
+                if (isBiometricSupported) {
+                  console.log('[Login] Checking for existing biometric enrollment');
+                  const existingCredentials = await AuthService.getSavedCredentials();
+                  
+                  if (!existingCredentials) {
+                    console.log('[Login] No existing enrollment, showing biometric modal');
+                    setTempCredentials({ email, password });
+                    setShowEnrollBiometricModal(true);
+                    setIsLoading(false);
+                    return;
+                  }
+                }
+                
+                if (count === 1) {
+                  console.log('[Login] Single tenant found, proceeding automatically');
+                  handleTenantSelect(tenants[0]);
+                } else if (count > 1) {
+                  console.log('[Login] Multiple tenants found, showing selection');
+                  setShowTenantModal(true);
+                } else {
+                  console.log('[Login] No organizations found');
+                  Alert.alert('Error', 'No organizations found for this email address');
+                }
+              } catch (error) {
+                console.error('[Login] Login error:', error);
+                Alert.alert('Error', error.message || 'Login failed. Please try again.');
+              } finally {
+                setIsLoading(false);
+              }
+            };
 
-  // YOUR ORIGINAL handleTenantSelect FUNCTION
-  const handleTenantSelect = async (tenant) => {
-    console.log('Selected tenant:', tenant.tenant_id);
-    setShowTenantModal(false);
-    setIsLoading(true);
-
-    try {
-      const tokenUrl = `https://${tenant.tenant_id}.stg-tenant.eclipsescheduling.com/api/auth/token`;
-      console.log('Token API URL:', tokenUrl);
-
-      const requestBody = {
-        email: email,
-        password: password
-      };
-      console.log('Token request body:', requestBody);
-
-      const response = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      console.log('Token API response:', data);
-
-      if (response.ok && data.token) {
-        // Successfully got token
-        console.log('Login successful');
-
-        // Prepare the script to save token in localStorage
-        const saveTokenScript = `
-          localStorage.setItem('authToken', '${data.token}');
-          localStorage.setItem('userEmail', '${email}');
-          true;
-        `;
-
-        // Set WebView URL to dashboard
-        const webViewUrl = `https://${tenant.tenant_id}.stg-tenant.eclipsescheduling.com/v1/provider/dashboard`;
-        console.log('Loading WebView:', webViewUrl);
-        setWebViewUrl(webViewUrl);
-
-        // Inject the token and show WebView
-        setShowWebView(true);
-      } else {
-        // Handle error response
-        const errorMessage = data.message || 'Failed to login';
-        console.error('Login failed:', errorMessage);
-        alert(errorMessage);
-      }
-    } catch (error) {
-      console.error('Token API error:', error);
-      alert('Failed to login. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // REST OF YOUR ORIGINAL FUNCTIONS REMAIN UNCHANGED
-  const handleNavigationChange = (navState) => {
-    const url = navState.url;
-    console.log('WebView URL:', url);
-
-    if (url.includes('/v1/login')) {
-      console.log('Detected login redirect → closing WebView');
-
-      // Close WebView and go to Native Login screen
-      setShowWebView(false); // hide WebView
-      navigation.replace('Login');
-    }
-  };
-
-
-                     const handleLogin = async () => {
-                      if (!email || !password) {
-                        alert('Please enter both email and password');
-                        return;
-                      }
-
-                      setIsLoading(true);
-                      try {
-                        const response = await fetch('https://test.stg-tenant.eclipsescheduling.com/api/tenant-users/search', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                          },
-                          body: JSON.stringify({ email }),
-                        });
-
-                        const data = await response.json();
-
-                        if (data.success) {
-                          setTenants(data.data);
-                          
-                          // Check if biometrics are supported and not already enrolled
-                          if (isBiometricSupported) {
-                            const existingCredentials = await Keychain.getGenericPassword({
-                              service: 'com.EclipseAppView.auth'
-                            });
-                            
-                            if (!existingCredentials) {
-                              // Store the tenants data and show biometric modal first
-                              setTempCredentials({ email, password });
-                              setShowEnrollBiometricModal(true);
-                              setIsLoading(false);
-                              return; // Exit here to show biometric modal
-                            }
-                          }
-                          
-                          // If no biometric enrollment needed, proceed to tenant selection
-                          if (data.count === 1) {
-                            handleTenantSelect(data.data[0]);
-                          } else if (data.count > 1) {
-                            setShowTenantModal(true);
-                          } else {
-                            alert('No organizations found for this email address');
-                          }
-                        } else {
-                          alert(data.message || 'Login failed');
-                        }
-                      } catch (error) {
-                        console.error('Login error:', error);
-                        alert('Login failed. Please try again.');
-                      } finally {
-                        setIsLoading(false);
-                      }
-                    };
-
-
-
-             const handleEnrollBiometric = async () => {
-              if (!tempCredentials) return;
+            // Handle biometric enrollment
+            const handleEnrollBiometric = async () => {
+              console.log('[Login] Biometric enrollment initiated');
+              if (!tempCredentials) {
+                console.log('[Login] No temporary credentials for enrollment');
+                return;
+              }
 
               setIsEnrollingBiometric(true);
               try {
-                const { success } = await rnBiometrics.simplePrompt({
-                  promptMessage: 'Verify your fingerprint to enable login',
-                  cancelButtonText: 'Cancel'
-                });
-
+                console.log('[Login] Starting biometric enrollment prompt');
+                const success = await BiometricService.authenticate('Verify your fingerprint to enable login');
+                
                 if (success) {
-                  await Keychain.setGenericPassword(
-                    tempCredentials.email,
-                    tempCredentials.password,
-                    {
-                      accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-                      service: 'com.EclipseAppView.auth'
-                    }
-                  );
+                  console.log('[Login] Biometric verified, saving credentials');
+                  await AuthService.saveCredentials(tempCredentials.email, tempCredentials.password);
                   
-                  console.log('Biometric enrollment successful');
-                  //alert('Fingerprint login enabled successfully!');
-                  
-                  // After enrollment, handle tenant selection
                   if (tenants.length === 1) {
-                    handleTenantSelect(tenants[0]);
+                    console.log('[Login] Single tenant found after enrollment');
+                    const { token, webViewUrl } = await AuthService.getToken(tenants[0].tenant_id, tempCredentials.email, tempCredentials.password);
+                    navigation.replace('Dashboard', { webViewUrl });
                   } else if (tenants.length > 1) {
+                    console.log('[Login] Multiple tenants found after enrollment');
                     setShowTenantModal(true);
                   }
                 }
               } catch (error) {
-                console.error('Biometric enrollment error:', error);
+                console.error('[Login] Biometric enrollment error:', error);
                 alert('Failed to enable fingerprint login');
               } finally {
+                console.log('[Login] Cleaning up enrollment state');
                 setIsEnrollingBiometric(false);
                 setShowEnrollBiometricModal(false);
                 setTempCredentials(null);
               }
             };
+                        
 
 
              const proceedAfterEnrollment = () => {
@@ -400,192 +361,36 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <View style={[styles.container, showWebView ? styles.webviewContainer : null]}>
-        {showWebView ? (
-          <WebView
-            source={{ uri: webViewUrl }}
-            style={styles.webview}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            cacheEnabled={true}
-            sharedCookiesEnabled={true}
-            mixedContentMode="always"
-            onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-            onNavigationStateChange={handleNavigationChange}
-            injectedJavaScript={injectJavaScript}
-            onMessage={(event) => console.log('WebView message:', event.nativeEvent.data)}
-          />
-        ) : (
-          <>
-            <Image source={require('../../assets/logo.png')} style={styles.logo} />
+      <View style={styles.container}>
+        <LoginForm
+          email={email}
+          setEmail={setEmail}
+          password={password}
+          setPassword={setPassword}
+          handleLogin={handleLogin}
+          handleBiometricLogin={handleBiometricLogin}
+          isBiometricChecked={isBiometricChecked}
+          isBiometricSupported={isBiometricSupported}
+          biometricType={biometricType}
+          isLoading={isLoading}
+        />
 
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Login to continue</Text>
+        <BiometricModal
+          showEnrollBiometricModal={showEnrollBiometricModal}
+          setShowEnrollBiometricModal={setShowEnrollBiometricModal}
+          handleEnrollBiometric={handleEnrollBiometric}
+          isEnrollingBiometric={isEnrollingBiometric}
+          tenants={tenants}
+          handleTenantSelect={handleTenantSelect}
+          proceedAfterEnrollment={proceedAfterEnrollment}
+        />
 
-            {/* Email Field */}
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            {/* Password Field */}
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="default"
-            />
-
-            {/* Forgot Password */}
-            <TouchableOpacity style={styles.forgotContainer}>
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
-            {/* Login Button */}
-            <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-              <Text style={styles.loginText}>Login</Text>
-            </TouchableOpacity>
-
-            {/* NEW: Biometric Login Button - Only shown if supported */}
-            {isBiometricChecked && isBiometricSupported && (
-            <TouchableOpacity
-            style={styles.biometricButton}
-            onPress={handleBiometricLogin}
-             >
-              <Image
-                source={
-                  biometricType === 'FaceID'
-                    ? require('../../assets/face-id.png')
-                    : require('../../assets/fingerprint-scan.png')
-                }
-                style={styles.biometricIcon}
-              />
-              <Text style={styles.biometricText}>
-                {biometricType === 'FaceID' ? 'Use Face ID' : 'Use Biometrics'}
-              </Text>
-            </TouchableOpacity>
-)}
-
-
-            
-            
-
-            {/* Optional - Signup */}
-            <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>Don’t have an account? </Text>
-              <TouchableOpacity>
-                <Text style={styles.signupLink}>Sign Up</Text>
-              </TouchableOpacity>
-            </View>
-
-
-
-            {/* Biometric Enrollment Modal */}
-                              <Modal
-                            visible={showEnrollBiometricModal}
-                            animationType="slide"
-                            transparent={true}
-                            onRequestClose={() => {
-                              setShowEnrollBiometricModal(false);
-                              proceedAfterEnrollment();
-                            }}
-                          >
-                            <View style={styles.modalContainer}>
-                              <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>Enable Fingerprint Login</Text>
-                                <Text style={styles.modalText}>
-                                  Do you want to enable fingerprint login for future access?
-                                </Text>
-                                
-                                <Image 
-                                  source={require('../../assets/fingerprint-scan.png')} 
-                                  style={styles.biometricIconLarge}
-                                />
-                                
-                                <View style={styles.modalButtonContainer}>
-                                  <TouchableOpacity
-                                    style={[styles.modalButton, styles.cancelButton]}
-                                    onPress={() => {
-                                      setShowEnrollBiometricModal(false);
-                                      // Proceed with tenant selection after skipping enrollment
-                                      if (tenants.length === 1) {
-                                        handleTenantSelect(tenants[0]);
-                                      } else if (tenants.length > 1) {
-                                        setShowTenantModal(true);
-                                      }
-                                    }}
-                                  >
-                                    <Text style={styles.modalButtonText}>Skip</Text>
-                                  </TouchableOpacity>
-                                  
-                                  <TouchableOpacity
-                                    style={[styles.modalButton, styles.enrollButton]}
-                                    onPress={handleEnrollBiometric}
-                                    disabled={isEnrollingBiometric}
-                                  >
-                                    {isEnrollingBiometric ? (
-                                      <ActivityIndicator color="#fff" />
-                                    ) : (
-                                      <Text style={styles.modalButtonText}>Enable</Text>
-                                    )}
-                                  </TouchableOpacity>
-                                </View>
-                              </View>
-                            </View>
-                          </Modal>
-
-            {/* Tenant Selection Modal */}
-            <Modal
-              visible={showTenantModal}
-              animationType="slide"
-              transparent={true}
-            >
-              <View style={styles.modalContainer}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Select Your Organization</Text>
-                  <FlatList
-                    data={tenants}
-                    keyExtractor={(item) => item.tenant_id}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={styles.tenantItem}
-                        onPress={() => handleTenantSelect(item)}
-                      >
-                        <Text style={styles.tenantText}>{item.tenant_id}</Text>
-                      </TouchableOpacity>
-                    )}
-                  />
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={() => setShowTenantModal(false)}
-                  >
-                    <Text style={styles.closeButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </Modal>
-
-
-            
-
-            {/* Loading Indicator */}
-            {isLoading && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
-              </View>
-            )}
-          </>
-        )}
+        <TenantModal
+          showTenantModal={showTenantModal}
+          setShowTenantModal={setShowTenantModal}
+          tenants={tenants}
+          handleTenantSelect={handleTenantSelect}
+        />
       </View>
     </SafeAreaView>
   );
@@ -596,180 +401,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  webview: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
+  // webview: {
+  //   flex: 1,
+  //   width: '100%',
+  //   height: '100%',
+  // },
   container: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 30,
   },
-  webviewContainer: {
-    padding: 0,
-    paddingHorizontal: 0,
-  },
-  logo: {
-    width: 120,
-    height: 120,
-    alignSelf: 'center',
-    marginBottom: 20,
-    resizeMode: 'contain',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 5,
-    color: '#333',
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#666',
-    marginBottom: 30,
-  },
-  input: {
-    height: 48,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    fontSize: 16,
-    marginBottom: 15,
-    color: '#333',
-  },
-  forgotContainer: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-  },
-  forgotText: {
-    color: '#007AFF',
-    fontSize: 14,
-  },
-  loginButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 25,
-  },
-  loginText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // NEW: Biometric button styles
-  biometricButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginTop: 20,
-  padding: 10,
-},
-  biometricIcon: {
-  width: 24,
-  height: 24,
-  marginRight: 10,
-},
-  biometricText: {
-    color: '#333',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  signupContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  signupText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  signupLink: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    width: '80%',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    maxHeight: '70%',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  tenantItem: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  tenantText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  closeButton: {
-    marginTop: 15,
-    padding: 10,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
-  },
-  loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-  },
-  biometricIconLarge: {
-  width: 64,
-  height: 64,
-  alignSelf: 'center',
-  marginVertical: 20,
-},
-modalText: {
-  fontSize: 16,
-  textAlign: 'center',
-  marginBottom: 10,
-  color: '#666',
-},
-modalButtonContainer: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  marginTop: 20,
-},
-modalButton: {
-  flex: 1,
-  padding: 15,
-  borderRadius: 8,
-  alignItems: 'center',
-  marginHorizontal: 5,
-},
-enrollButton: {
-  backgroundColor: '#007AFF',
-},
-cancelButton: {
-  backgroundColor: '#ccc',
-},
-modalButtonText: {
-  color: '#fff',
-  fontSize: 16,
-  fontWeight: '600',
-},
+  // webviewContainer: {
+  //   padding: 0,
+  //   paddingHorizontal: 0,
+  // },
+  
 });
