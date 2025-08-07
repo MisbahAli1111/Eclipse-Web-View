@@ -1,26 +1,28 @@
-// Navigation.js
-import 'react-native-gesture-handler'; // Should still be first
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
 import SplashScreen from '../screens/splashscreen';
 import LoginScreen from '../screens/loginscreen';
+import DashboardScreen from '../screens/DashboardScreen';
 
 const Stack = createNativeStackNavigator();
 
-export default function Navigation() {
+const AppNavigator = ({ initialRoute }) => {
   return (
-    <NavigationContainer>
-      <Stack.Navigator 
-        screenOptions={{ 
-          headerShown: false,
-          animation: 'slide_from_right', // Native animation
-        }}
-      >
-        <Stack.Screen name="Splash" component={SplashScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <Stack.Navigator
+      initialRouteName={initialRoute}
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <Stack.Screen name="Splash" component={SplashScreen} />
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen 
+        name="Dashboard" 
+        component={DashboardScreen}
+        options={{ gestureEnabled: false }}
+      />
+    </Stack.Navigator>
   );
-}
+};
+
+export default AppNavigator;
