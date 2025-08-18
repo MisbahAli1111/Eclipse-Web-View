@@ -53,10 +53,8 @@ export const SessionService = {
     // Clear secure credentials
     await Keychain.resetGenericPassword();
     
-    console.log('Session completely cleared');
     return true;
   } catch (error) {
-    console.error('Session clear failed:', error);
     throw error;
   }
 },

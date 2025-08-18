@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, Image } from 'react-native';
 import { SessionService } from '../services/session';
 
 export default function SplashScreen({ navigation }) {
@@ -19,7 +19,6 @@ export default function SplashScreen({ navigation }) {
           }
         }, 2000);
       } catch (error) {
-        console.error('Session check failed:', error);
         navigation.replace('Login');
       }
     };
@@ -28,8 +27,11 @@ export default function SplashScreen({ navigation }) {
   }, [navigation]);
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" />
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+      <Image
+        source={require('../../assets/logo.png')}
+        style={{ width: 160, height: 160, resizeMode: 'contain' }}
+      />
     </View>
   );
 }

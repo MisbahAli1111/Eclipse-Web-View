@@ -58,19 +58,13 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
   // Check for auto-login on component mount
         useEffect(() => {
-              console.log('[Login] Component mounted - checking for auto-login');
               const checkAutoLogin = async () => {
-                console.log('[Login] Checking session validity');
                 const isValid = await SessionService.isSessionValid();
-                console.log(`[Login] Session validity: ${isValid}`);
                 
                 if (isValid) {
-                  console.log('[Login] Valid session found, getting tenant ID');
                   const tenantId = await SessionService.getTenantId();
-                  console.log(`[Login] Tenant ID retrieved: ${tenantId || 'none'}`);
                   
                   if (tenantId) {
-                    console.log('[Login] Navigating to Dashboard with tenant URL');
                     navigation.replace('Dashboard', {
                       webViewUrl: `https://${tenantId}.stg-tenant.eclipsescheduling.com/v1/provider/dashboard`
                     });
@@ -82,17 +76,13 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
             // App state handler
             useEffect(() => {
-              console.log('[Login] Setting up app state listener');
               const handleAppStateChange = async (nextAppState) => {
-                console.log(`[Login] App state changed to: ${nextAppState}`);
                 
                 if (nextAppState === 'active') {
-                  console.log('[Login] App became active, checking session');
+                  
                   const isValid = await SessionService.isSessionValid();
-                  console.log(`[Login] Session validity: ${isValid}`);
                   
                   if (!isValid) {
-                    console.log('[Login] Invalid session, clearing and hiding WebView');
                     await SessionService.clearSession();
                     setShowWebView(false);
                   }
@@ -101,35 +91,27 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
               const subscription = AppState.addEventListener('change', handleAppStateChange);
               return () => {
-                console.log('[Login] Cleaning up app state listener');
                 subscription.remove();
               };
             }, []);
 
             // Biometrics initialization
             useEffect(() => {
-              console.log('[Login] Initializing biometric authentication');
               const initBiometrics = async () => {
                 try {
-                  console.log('[Login] Checking biometric sensor availability');
                   const { available, biometryType } = await rnBiometrics.isSensorAvailable();
-                  console.log(`[Login] Biometric available: ${available}, type: ${biometryType}`);
                   
                   setIsBiometricSupported(available);
                   setBiometricType(biometryType);
                   
-                  console.log('[Login] Checking for saved credentials');
                   const credentials = await AuthService.getSavedCredentials();
-                  console.log(`[Login] Saved credentials found: ${!!credentials}`);
                   
                   if (credentials) {
-                    console.log('[Login] Setting email from saved credentials');
                     setEmail(credentials.username);
                   }
                 } catch (error) {
                   console.error('[Login] Biometric initialization error:', error);
                 } finally {
-                  console.log('[Login] Biometric check completed');
                   setIsBiometricChecked(true);
                 }
               };
@@ -139,51 +121,39 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
             const updateLastActive = async () => {
               const now = Date.now();
-              console.log(`[Login] Updating last active time: ${new Date(now).toISOString()}`);
               await AsyncStorage.setItem('@last_active', now.toString());
             };
 
             // Handle biometric login
             const handleBiometricLogin = async () => {
-              console.log('[Login] Biometric login initiated');
               if (!isBiometricSupported) {
-                console.log('[Login] Biometrics not supported on this device');
                 Alert.alert('Error', 'Biometric authentication not available');
                 return;
               }
 
               try {
-                console.log('[Login] Retrieving saved credentials');
                 const credentials = await AuthService.getSavedCredentials();
                 
                 if (!credentials) {
-                  console.log('[Login] No biometric enrollment found');
                   Alert.alert('Error', 'No enrolled fingerprint found. Please login with email/password first.');
                   return;
                 }
 
-                console.log('[Login] Starting biometric authentication prompt');
                 const success = await BiometricService.authenticate('Authenticate to login');
                 
                 if (success) {
-                  console.log('[Login] Biometric authentication successful');
-                  console.log('[Login] Setting credentials in state');
                   setEmail(credentials.username);
                   setPassword(credentials.password);
                   
                   setIsLoading(true);
                   try {
-                    console.log('[Login] Fetching tenant information');
                     const { tenants, count } = await TenantService.getTenants(credentials.username);
-                    console.log(`[Login] Found ${count} tenants`);
                     
                     setTenants(tenants);
                     if (count === 1) {
-                      console.log('[Login] Single tenant found, proceeding with login');
                       const { token, webViewUrl } = await AuthService.getToken(tenants[0].tenant_id, credentials.username, credentials.password);
                       navigation.replace('Dashboard', { webViewUrl });
                     } else if (count > 1) {
-                      console.log('[Login] Multiple tenants found, showing selection');
                       setShowTenantModal(true);
                     }
                   } catch (error) {
@@ -192,8 +162,6 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                   } finally {
                     setIsLoading(false);
                   }
-                } else {
-                  console.log('[Login] Biometric authentication cancelled or failed');
                 }
               } catch (error) {
                 console.error('[Login] Biometric authentication error:', error);
@@ -203,17 +171,13 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
             // Handle tenant selection
             const handleTenantSelect = async (tenant) => {
-              console.log(`[Login] Tenant selected: ${tenant.tenant_id}`);
               setShowTenantModal(false);
               setIsLoading(true);
 
               try {
-                console.log('[Login] Getting token for selected tenant');
                 const { token, webViewUrl } = await AuthService.getToken(tenant.tenant_id, email, password);
-                console.log('[Login] Token received, setting WebView URL');
                 setWebViewUrl(webViewUrl);
                 setShowWebView(true);
-                console.log('[Login] Navigating to Dashboard');
                 navigation.replace('Dashboard');
               } catch (error) {
                 console.error('[Login] Tenant selection error:', error);
@@ -225,27 +189,21 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
             // Handle regular login
             const handleLogin = async () => {
-              console.log(`[Login] Login initiated for email: ${email}`);
               if (!email || !password) {
-                console.log('[Login] Validation failed - empty email or password');
                 Alert.alert('Error', 'Please enter both email and password');
                 return;
               }
 
               setIsLoading(true);
               try {
-                console.log('[Login] Searching for tenants');
                 const { tenants, count } = await TenantService.getTenants(email);
-                console.log(`[Login] Found ${count} tenants`);
                 
                 setTenants(tenants);
                 
                 if (isBiometricSupported) {
-                  console.log('[Login] Checking for existing biometric enrollment');
                   const existingCredentials = await AuthService.getSavedCredentials();
                   
                   if (!existingCredentials) {
-                    console.log('[Login] No existing enrollment, showing biometric modal');
                     setTempCredentials({ email, password });
                     setShowEnrollBiometricModal(true);
                     setIsLoading(false);
@@ -254,13 +212,10 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                 }
                 
                 if (count === 1) {
-                  console.log('[Login] Single tenant found, proceeding automatically');
                   handleTenantSelect(tenants[0]);
                 } else if (count > 1) {
-                  console.log('[Login] Multiple tenants found, showing selection');
                   setShowTenantModal(true);
                 } else {
-                  console.log('[Login] No organizations found');
                   Alert.alert('Error', 'No organizations found for this email address');
                 }
               } catch (error) {
@@ -273,27 +228,21 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
             // Handle biometric enrollment
             const handleEnrollBiometric = async () => {
-              console.log('[Login] Biometric enrollment initiated');
               if (!tempCredentials) {
-                console.log('[Login] No temporary credentials for enrollment');
                 return;
               }
 
               setIsEnrollingBiometric(true);
               try {
-                console.log('[Login] Starting biometric enrollment prompt');
                 const success = await BiometricService.authenticate('Verify your fingerprint to enable login');
                 
                 if (success) {
-                  console.log('[Login] Biometric verified, saving credentials');
                   await AuthService.saveCredentials(tempCredentials.email, tempCredentials.password);
                   
                   if (tenants.length === 1) {
-                    console.log('[Login] Single tenant found after enrollment');
                     const { token, webViewUrl } = await AuthService.getToken(tenants[0].tenant_id, tempCredentials.email, tempCredentials.password);
                     navigation.replace('Dashboard', { webViewUrl });
                   } else if (tenants.length > 1) {
-                    console.log('[Login] Multiple tenants found after enrollment');
                     setShowTenantModal(true);
                   }
                 }
@@ -301,7 +250,6 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                 console.error('[Login] Biometric enrollment error:', error);
                 alert('Failed to enable fingerprint login');
               } finally {
-                console.log('[Login] Cleaning up enrollment state');
                 setIsEnrollingBiometric(false);
                 setShowEnrollBiometricModal(false);
                 setTempCredentials(null);
@@ -333,18 +281,15 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
       try {
         // Get token from the API response
         const token = window.localStorage.getItem('authToken');
-        console.log('Retrieved token from storage:', token ? 'Yes' : 'No');
         
         if (!token) {
           // If token not found, we might need to handle that case
-          console.log('No token found in storage');
           window.ReactNativeWebView.postMessage('No token found');
           return;
         }
 
         // Update localStorage and cookies if needed
         window.localStorage.setItem('authToken', token);
-        console.log('Token saved in localStorage');
         
         // Send success message back to React Native
         window.ReactNativeWebView.postMessage('Token injected successfully');

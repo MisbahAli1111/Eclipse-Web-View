@@ -11,7 +11,6 @@ export const BiometricService = {
         type: biometryType
       };
     } catch (error) {
-      console.error('Biometric check error:', error);
       throw error;
     }
   },
@@ -24,7 +23,6 @@ export const BiometricService = {
       });
       return success;
     } catch (error) {
-      console.error('Biometric auth error:', error);
       throw error;
     }
   }

@@ -17,7 +17,6 @@ export const AuthService = {
 
       return await response.json();
     } catch (error) {
-      console.error('Login error:', error);
       throw error;
     }
   },
@@ -53,7 +52,6 @@ export const AuthService = {
         throw new Error(data.message || 'Failed to login');
       }
     } catch (error) {
-      console.error('Token fetch error:', error);
       throw error;
     }
   },
@@ -66,7 +64,6 @@ export const AuthService = {
       });
       return true;
     } catch (error) {
-      console.error('Failed to save credentials:', error);
       throw error;
     }
   },
@@ -77,7 +74,6 @@ export const AuthService = {
         service: 'com.EclipseAppView.auth'
       });
     } catch (error) {
-      console.error('Failed to load credentials:', error);
       throw error;
     }
   }

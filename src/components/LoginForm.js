@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet
 } from 'react-native';
+import Loader from './Loader';
 //import { styles } from './styles';
 
 export const LoginForm = ({
@@ -81,11 +82,7 @@ export const LoginForm = ({
       </TouchableOpacity>
     </View>
 
-    {isLoading && (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    )}
+    {isLoading && <Loader />}
   </>
 );
 

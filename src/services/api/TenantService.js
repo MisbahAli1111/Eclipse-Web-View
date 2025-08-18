@@ -22,7 +22,6 @@ export const TenantService = {
         throw new Error(data.message || 'Failed to fetch tenants');
       }
     } catch (error) {
-      console.error('Tenant fetch error:', error);
       throw error;
     }
   }
