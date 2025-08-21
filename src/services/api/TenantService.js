@@ -1,5 +1,5 @@
 export const TenantService = {
-  async getTenants(email) {
+  async getTenants(email, password) {
     try {
       const response = await fetch('https://test.stg-tenant.eclipsescheduling.com/api/tenant-users/search', {
         method: 'POST',
@@ -7,11 +7,10 @@ export const TenantService = {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
-      
       if (data.success) {
         return {
           success: true,

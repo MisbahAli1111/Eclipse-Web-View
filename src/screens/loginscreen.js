@@ -196,7 +196,7 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
               setIsLoading(true);
               try {
-                const { tenants, count } = await TenantService.getTenants(email);
+                const { tenants, count } = await TenantService.getTenants(email , password);
                 
                 setTenants(tenants);
                 

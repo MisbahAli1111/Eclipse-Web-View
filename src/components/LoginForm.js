@@ -5,11 +5,10 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
   StyleSheet
 } from 'react-native';
 import Loader from './Loader';
-//import { styles } from './styles';
+
 
 export const LoginForm = ({
   email,
@@ -47,10 +46,6 @@ export const LoginForm = ({
       secureTextEntry
       autoCapitalize="none"
     />
-
-    <TouchableOpacity style={styles.forgotContainer}>
-      <Text style={styles.forgotText}>Forgot Password?</Text>
-    </TouchableOpacity>
 
     <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
       <Text style={styles.loginText}>Login</Text>
@@ -132,6 +127,7 @@ export const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: '#007AFF',
     paddingVertical: 14,
+    marginTop: 25,
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 25,
