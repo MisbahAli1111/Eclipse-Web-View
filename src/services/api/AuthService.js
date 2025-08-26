@@ -70,11 +70,23 @@ export const AuthService = {
 
   async getSavedCredentials() {
     try {
-      return await Keychain.getGenericPassword({
+      const credentials = await Keychain.getGenericPassword({
         service: 'com.EclipseAppView.auth'
       });
+      
+      // Keychain returns false if no credentials are found
+      if (credentials === false) {
+        return null;
+      }
+      
+      // Return the credentials in the expected format
+      return {
+        username: credentials.username,
+        password: credentials.password
+      };
     } catch (error) {
-      throw error;
+      console.error('[AuthService] Error getting saved credentials:', error);
+      return null;
     }
   }
 };

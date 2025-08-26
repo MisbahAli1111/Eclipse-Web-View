@@ -101,10 +101,13 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                 try {
                   const { available, biometryType } = await rnBiometrics.isSensorAvailable();
                   
+                  console.log('[Login] Biometric availability:', { available, biometryType });
+                  
                   setIsBiometricSupported(available);
                   setBiometricType(biometryType);
                   
                   const credentials = await AuthService.getSavedCredentials();
+                  console.log('[Login] Saved credentials found:', !!credentials);
                   
                   if (credentials) {
                     setEmail(credentials.username);
@@ -134,8 +137,8 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
               try {
                 const credentials = await AuthService.getSavedCredentials();
                 
-                if (!credentials) {
-                  Alert.alert('Error', 'No enrolled fingerprint found. Please login with email/password first.');
+                if (!credentials || !credentials.username || !credentials.password) {
+                  Alert.alert('Error', 'No enrolled biometric credentials found. Please login with email/password first.');
                   return;
                 }
 
@@ -147,7 +150,7 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                   
                   setIsLoading(true);
                   try {
-                    const { tenants, count } = await TenantService.getTenants(credentials.username);
+                    const { tenants, count } = await TenantService.getTenants(credentials.username, credentials.password);
                     
                     setTenants(tenants);
                     if (count === 1) {

@@ -17,12 +17,19 @@ export const BiometricService = {
 
   async authenticate(promptMessage = 'Authenticate to login') {
     try {
-      const { success } = await rnBiometrics.simplePrompt({
+      const { success, error } = await rnBiometrics.simplePrompt({
         promptMessage,
         cancelButtonText: 'Cancel'
       });
+      
+      if (error) {
+        console.error('[BiometricService] Authentication error:', error);
+        throw new Error(error);
+      }
+      
       return success;
     } catch (error) {
+      console.error('[BiometricService] Authentication failed:', error);
       throw error;
     }
   }

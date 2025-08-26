@@ -23,7 +23,8 @@ export const LoginForm = ({
   isLoading
 }) => (
   <>
-    <Image source={require('../../assets/logo.png')} style={styles.logo} />
+    <Image source={require('../../assets/eclipseLogo3D.png')} style={styles.logo} />
+    <Text style={styles.logoText}>ECLIPSE</Text>
     <Text style={styles.title}>Welcome Back</Text>
     <Text style={styles.subtitle}>Login to continue</Text>
 
@@ -70,13 +71,6 @@ export const LoginForm = ({
       </TouchableOpacity>
     )}
 
-    <View style={styles.signupContainer}>
-      <Text style={styles.signupText}>Don't have an account? </Text>
-      <TouchableOpacity>
-        <Text style={styles.signupLink}>Sign Up</Text>
-      </TouchableOpacity>
-    </View>
-
     {isLoading && <Loader />}
   </>
 );
@@ -88,10 +82,10 @@ export const LoginForm = ({
 export const styles = StyleSheet.create({
 
   logo: {
-    width: 120,
-    height: 120,
+    width: 80,
+    height: 80,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 5,
     resizeMode: 'contain',
   },
   title: {
@@ -167,6 +161,13 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#007AFF',
+  },
+  logoText: {
+    fontSize: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 20,
+    color: '#333',
   },
  
 });

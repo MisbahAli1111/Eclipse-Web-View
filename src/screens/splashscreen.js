@@ -29,8 +29,8 @@ export default function SplashScreen({ navigation }) {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
       <Image
-        source={require('../../assets/logo.png')}
-        style={{ width: 160, height: 160, resizeMode: 'contain' }}
+        source={require('../../assets/eclipseLogo3D.png')}
+        style={{ width: 120, height: 120, resizeMode: 'contain' }}
       />
     </View>
   );
