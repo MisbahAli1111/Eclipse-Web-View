@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Image } from 'react-native';
 import { SessionService } from '../services/session';
+import { getDashboardUrl } from '../services/api/config';
 
 export default function SplashScreen({ navigation }) {
   useEffect(() => {
@@ -12,7 +13,7 @@ export default function SplashScreen({ navigation }) {
         setTimeout(() => {
           if (isValid && tenantId) {
             navigation.replace('Dashboard', { 
-              webViewUrl: `https://${tenantId}.stg-tenant.eclipsescheduling.com/v1/provider/dashboard`
+              webViewUrl: getDashboardUrl(tenantId)
             });
           } else {
             navigation.replace('Login');

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import { SessionService } from '../services/session';
+import { getDashboardUrl } from '../services/api/config';
 import Loader from '../components/Loader';
 
 const DashboardScreen = ({ navigation }) => {
@@ -29,7 +30,7 @@ const DashboardScreen = ({ navigation }) => {
           throw new Error('No tenant information found');
         }
 
-        const url = `https://${tenantId}.stg-tenant.eclipsescheduling.com/v1/provider/dashboard`;
+        const url = getDashboardUrl(tenantId);
         setWebViewUrl(url);
         setIsLoading(false);
         

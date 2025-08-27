@@ -203,7 +203,8 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                 
                 setTenants(tenants);
                 
-                if (isBiometricSupported) {
+                // Only offer biometric enrollment AFTER successful API response
+                if (isBiometricSupported && count > 0) {
                   const existingCredentials = await AuthService.getSavedCredentials();
                   
                   if (!existingCredentials) {
@@ -240,18 +241,19 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                 const success = await BiometricService.authenticate('Verify your fingerprint to enable login');
                 
                 if (success) {
+                  // Save credentials only after successful biometric authentication
                   await AuthService.saveCredentials(tempCredentials.email, tempCredentials.password);
                   
+                  // Proceed with login flow
                   if (tenants.length === 1) {
-                    const { token, webViewUrl } = await AuthService.getToken(tenants[0].tenant_id, tempCredentials.email, tempCredentials.password);
-                    navigation.replace('Dashboard', { webViewUrl });
+                    handleTenantSelect(tenants[0]);
                   } else if (tenants.length > 1) {
                     setShowTenantModal(true);
                   }
                 }
               } catch (error) {
                 console.error('[Login] Biometric enrollment error:', error);
-                alert('Failed to enable fingerprint login');
+                Alert.alert('Error', 'Failed to enable fingerprint login');
               } finally {
                 setIsEnrollingBiometric(false);
                 setShowEnrollBiometricModal(false);

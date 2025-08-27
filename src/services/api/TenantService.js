@@ -1,7 +1,9 @@
+import { getTenantSearchUrl } from './config';
+
 export const TenantService = {
   async getTenants(email, password) {
     try {
-      const response = await fetch('https://test.stg-tenant.eclipsescheduling.com/api/tenant-users/search', {
+      const response = await fetch(getTenantSearchUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

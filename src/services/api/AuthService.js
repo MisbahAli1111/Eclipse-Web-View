@@ -1,29 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Keychain from 'react-native-keychain';
 import { SessionService } from '../session';
+import { getAuthUrl, getDashboardUrl } from './config';
 
 export const AuthService = {
-  async login(email, password) {
-    
-    try {
-      const response = await fetch('https://test.stg-tenant.eclipsescheduling.com/api/tenant-users/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      return await response.json();
-    } catch (error) {
-      throw error;
-    }
-  },
 
   async getToken(tenantId, email, password) {
     try {
-      const tokenUrl = `https://${tenantId}.stg-tenant.eclipsescheduling.com/api/auth/token`;
+      const tokenUrl = getAuthUrl(tenantId);
       const response = await fetch(tokenUrl, {
         method: 'POST',
         headers: {
@@ -46,7 +30,7 @@ export const AuthService = {
         return {
           success: true,
           token: data.token,
-          webViewUrl: `https://${tenantId}.stg-tenant.eclipsescheduling.com/v1/provider/dashboard`
+          webViewUrl: getDashboardUrl(tenantId)
         };
       } else {
         throw new Error(data.message || 'Failed to login');
