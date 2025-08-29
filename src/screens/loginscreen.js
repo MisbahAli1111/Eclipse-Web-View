@@ -136,13 +136,22 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
               try {
                 const credentials = await AuthService.getSavedCredentials();
+                console.log('[Login] Retrieved credentials for Face ID:', { 
+                  hasCredentials: !!credentials,
+                  hasUsername: !!credentials?.username,
+                  hasPassword: !!credentials?.password,
+                  username: credentials?.username 
+                });
                 
                 if (!credentials || !credentials.username || !credentials.password) {
                   Alert.alert('Error', 'No enrolled biometric credentials found. Please login with email/password first.');
                   return;
                 }
 
-                const success = await BiometricService.authenticate('Authenticate to login');
+                const promptMessage = biometricType === 'FaceID' 
+                  ? 'Use Face ID to login' 
+                  : 'Use fingerprint to login';
+                const success = await BiometricService.authenticate(promptMessage);
                 
                 if (success) {
                   setEmail(credentials.username);
@@ -150,25 +159,46 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                   
                   setIsLoading(true);
                   try {
+                    console.log('[Login] Attempting Face ID login with:', credentials.username);
                     const { tenants, count } = await TenantService.getTenants(credentials.username, credentials.password);
                     
+                    console.log('[Login] Face ID tenant fetch successful:', { count, tenants: tenants?.length });
                     setTenants(tenants);
                     if (count === 1) {
                       const { token, webViewUrl } = await AuthService.getToken(tenants[0].tenant_id, credentials.username, credentials.password);
                       navigation.replace('Dashboard', { webViewUrl });
                     } else if (count > 1) {
                       setShowTenantModal(true);
+                    } else {
+                      Alert.alert('Error', 'No organizations found for this account');
                     }
                   } catch (error) {
-                    console.error('[Login] Tenant fetch error:', error);
-                    Alert.alert('Error', error.message || 'Failed to fetch tenant information');
+                    console.error('[Login] Face ID tenant fetch error:', error);
+                    
+                    // Provide more specific error messages
+                    let errorMessage = 'Authentication failed. ';
+                    if (error.message?.includes('not found') || error.message?.includes('invalid credentials')) {
+                      errorMessage += 'The saved credentials may be outdated. Please login with email/password to refresh your credentials.';
+                      
+                      // Clear outdated credentials
+                      try {
+                        await AuthService.clearCredentials();
+                        console.log('[Login] Cleared outdated credentials from keychain');
+                      } catch (clearError) {
+                        console.error('[Login] Error clearing credentials:', clearError);
+                      }
+                    } else {
+                      errorMessage += error.message || 'Please try again or login with email/password.';
+                    }
+                    
+                    Alert.alert('Face ID Login Failed', errorMessage);
                   } finally {
                     setIsLoading(false);
                   }
                 }
               } catch (error) {
                 console.error('[Login] Biometric authentication error:', error);
-                Alert.alert('Error', `Authentication failed: ${error.message}`);
+                Alert.alert('Error', `Face ID authentication failed: ${error.message}`);
               }
             };
 
@@ -199,19 +229,41 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
               setIsLoading(true);
               try {
+                console.log('[Login] Attempting regular login with:', email);
                 const { tenants, count } = await TenantService.getTenants(email , password);
                 
+                console.log('[Login] Regular login successful:', { count, tenants: tenants?.length });
                 setTenants(tenants);
                 
                 // Only offer biometric enrollment AFTER successful API response
                 if (isBiometricSupported && count > 0) {
                   const existingCredentials = await AuthService.getSavedCredentials();
                   
+                  // If credentials exist but are different from current login, update them
+                  if (existingCredentials && existingCredentials.username !== email) {
+                    console.log('[Login] Updating stored credentials for new user');
+                    setTempCredentials({ email, password });
+                    setShowEnrollBiometricModal(true);
+                    setIsLoading(false);
+                    return;
+                  }
+                  
+                  // If no credentials exist, offer enrollment
                   if (!existingCredentials) {
                     setTempCredentials({ email, password });
                     setShowEnrollBiometricModal(true);
                     setIsLoading(false);
                     return;
+                  }
+                  
+                  // If same user, just update the password in case it changed
+                  if (existingCredentials && existingCredentials.username === email) {
+                    try {
+                      await AuthService.saveCredentials(email, password);
+                      console.log('[Login] Updated stored credentials for existing user');
+                    } catch (updateError) {
+                      console.error('[Login] Failed to update stored credentials:', updateError);
+                    }
                   }
                 }
                 
@@ -238,7 +290,12 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
               setIsEnrollingBiometric(true);
               try {
-                const success = await BiometricService.authenticate('Verify your fingerprint to enable login');
+                const biometricName = biometricType === 'FaceID' ? 'Face ID' : 'fingerprint';
+                const promptMessage = biometricType === 'FaceID' 
+                  ? 'Verify your Face ID to enable login' 
+                  : 'Verify your fingerprint to enable login';
+                
+                const success = await BiometricService.authenticate(promptMessage);
                 
                 if (success) {
                   // Save credentials only after successful biometric authentication
@@ -253,7 +310,8 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                 }
               } catch (error) {
                 console.error('[Login] Biometric enrollment error:', error);
-                Alert.alert('Error', 'Failed to enable fingerprint login');
+                const biometricName = biometricType === 'FaceID' ? 'Face ID' : 'fingerprint';
+                Alert.alert('Error', `Failed to enable ${biometricName} login`);
               } finally {
                 setIsEnrollingBiometric(false);
                 setShowEnrollBiometricModal(false);
@@ -333,6 +391,7 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
           tenants={tenants}
           handleTenantSelect={handleTenantSelect}
           proceedAfterEnrollment={proceedAfterEnrollment}
+          biometricType={biometricType}
         />
 
         <TenantModal

@@ -42,12 +42,36 @@ export const AuthService = {
 
   async saveCredentials(email, password) {
     try {
+      // If empty credentials are passed, clear the keychain
+      if (!email || !password) {
+        await Keychain.resetGenericPassword({
+          service: 'com.EclipseAppView.auth'
+        });
+        console.log('[AuthService] Credentials cleared from keychain');
+        return true;
+      }
+      
       await Keychain.setGenericPassword(email, password, {
         accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
         service: 'com.EclipseAppView.auth'
       });
+      console.log('[AuthService] Credentials saved to keychain for:', email);
       return true;
     } catch (error) {
+      console.error('[AuthService] Error saving credentials:', error);
+      throw error;
+    }
+  },
+
+  async clearCredentials() {
+    try {
+      await Keychain.resetGenericPassword({
+        service: 'com.EclipseAppView.auth'
+      });
+      console.log('[AuthService] Credentials cleared from keychain');
+      return true;
+    } catch (error) {
+      console.error('[AuthService] Error clearing credentials:', error);
       throw error;
     }
   },

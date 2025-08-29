@@ -17,8 +17,17 @@ export const BiometricModal = ({
   isEnrollingBiometric,
   tenants,
   handleTenantSelect,
-  proceedAfterEnrollment
-}) => (
+  proceedAfterEnrollment,
+  biometricType
+}) => {
+  // Dynamic text and icon based on biometric type
+  const isFaceID = biometricType === 'FaceID';
+  const biometricName = isFaceID ? 'Face ID' : 'Fingerprint';
+  const biometricIcon = isFaceID 
+    ? require('../../assets/face-id.png') 
+    : require('../../assets/fingerprint-scan.png');
+  
+  return (
   <Modal
     visible={showEnrollBiometricModal}
     animationType="slide"
@@ -30,13 +39,13 @@ export const BiometricModal = ({
   >
     <View style={styles.modalContainer}>
       <View style={styles.modalContent}>
-        <Text style={styles.modalTitle}>Enable Fingerprint Login</Text>
+        <Text style={styles.modalTitle}>Enable {biometricName} Login</Text>
         <Text style={styles.modalText}>
-          Do you want to enable fingerprint login for future access?
+          Do you want to enable {biometricName.toLowerCase()} login for future access?
         </Text>
         
         <Image 
-          source={require('../../assets/fingerprint-scan.png')} 
+          source={biometricIcon} 
           style={styles.biometricIconLarge}
         />
         
@@ -70,7 +79,8 @@ export const BiometricModal = ({
       </View>
     </View>
   </Modal>
-);
+  );
+};
 
 
 
