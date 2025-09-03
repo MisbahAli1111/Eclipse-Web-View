@@ -18,7 +18,8 @@ export const BiometricModal = ({
   tenants,
   handleTenantSelect,
   proceedAfterEnrollment,
-  biometricType
+  biometricType,
+  setShowTenantModal
 }) => {
   // Dynamic text and icon based on biometric type
   const isFaceID = biometricType === 'FaceID';

@@ -392,6 +392,7 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
           handleTenantSelect={handleTenantSelect}
           proceedAfterEnrollment={proceedAfterEnrollment}
           biometricType={biometricType}
+          setShowTenantModal={setShowTenantModal}
         />
 
         <TenantModal
