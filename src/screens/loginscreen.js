@@ -198,7 +198,18 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                 }
               } catch (error) {
                 console.error('[Login] Biometric authentication error:', error);
-                Alert.alert('Error', `Face ID authentication failed: ${error.message}`);
+                
+                // Use the structured error message if available, otherwise fallback to generic message
+                let errorMessage = error.userMessage || error.message || 'Face ID authentication failed. Please try again or use your password to login.';
+                
+                // Safety check: if the error message contains iOS domain information, use a clean message
+                if (errorMessage.includes('com.apple.LocalAuthentication') || errorMessage.includes('Error Domain') || errorMessage.length > 200) {
+                  errorMessage = 'Face ID authentication was cancelled. Please try again or use your password to login.';
+                }
+                
+                const errorTitle = error.code === 'UserCancel' ? 'Authentication Cancelled' : 'Face ID Authentication Failed';
+                
+                Alert.alert(errorTitle, errorMessage);
               }
             };
 
@@ -311,7 +322,18 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
               } catch (error) {
                 console.error('[Login] Biometric enrollment error:', error);
                 const biometricName = biometricType === 'FaceID' ? 'Face ID' : 'fingerprint';
-                Alert.alert('Error', `Failed to enable ${biometricName} login`);
+                
+                // Use the structured error message if available
+                let errorMessage = error.userMessage || `Failed to enable ${biometricName} login. ${error.message || 'Please try again.'}`;
+                
+                // Safety check: if the error message contains iOS domain information, use a clean message
+                if (errorMessage.includes('com.apple.LocalAuthentication') || errorMessage.includes('Error Domain') || errorMessage.length > 200) {
+                  errorMessage = `${biometricName} setup was cancelled. You can enable it later in the app settings.`;
+                }
+                
+                const errorTitle = error.code === 'UserCancel' ? 'Setup Cancelled' : `${biometricName} Setup Failed`;
+                
+                Alert.alert(errorTitle, errorMessage);
               } finally {
                 setIsEnrollingBiometric(false);
                 setShowEnrollBiometricModal(false);
