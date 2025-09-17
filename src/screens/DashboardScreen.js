@@ -154,8 +154,12 @@ const DashboardScreen = ({ navigation }) => {
   // Download handler function
   const handleFileDownload = async (downloadUrl, fileName = null) => {
     try {
-      console.log('Download requested for:', downloadUrl);
+      console.log('🚀 Fast download requested for:', downloadUrl);
       
+      // Show immediate feedback - non-blocking
+      const startTime = Date.now();
+      console.log('⏱️ Download started at:', new Date(startTime).toLocaleTimeString());
+
       // Request download permissions first
       const hasPermissions = await requestPermissions(true);
       if (!hasPermissions) {
@@ -192,24 +196,37 @@ const DashboardScreen = ({ navigation }) => {
         downloadDest = `${RNFS.CachesDirectoryPath}/${uniqueFileName}`;
       }
 
-      console.log('Downloading to:', downloadDest);
+      console.log('📂 Downloading to:', downloadDest);
 
-      // Download the file
+      // Use faster download with better settings
       const downloadResult = await RNFS.downloadFile({
         fromUrl: downloadUrl,
         toFile: downloadDest,
-        background: true,
-        discretionary: true,
+        background: false,        // Foreground for faster processing
+        discretionary: false,     // Don't defer download
+        cacheable: false,         // Skip cache to avoid delays
+        connectionTimeout: 15000, // 15 second connection timeout
+        readTimeout: 30000,       // 30 second read timeout
+        headers: {
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache'
+        },
         progress: (res) => {
           const progress = (res.bytesWritten / res.contentLength) * 100;
-          console.log(`Download progress: ${progress.toFixed(2)}%`);
+          if (progress % 25 === 0) { // Log every 25%
+            console.log(`📊 Download progress: ${progress.toFixed(0)}%`);
+          }
         }
       }).promise;
 
+      const endTime = Date.now();
+      const duration = ((endTime - startTime) / 1000).toFixed(1);
+      console.log(`⚡ Download completed in ${duration} seconds`);
+
       if (downloadResult.statusCode === 200) {
-        console.log('Download successful:', downloadDest);
+        console.log('✅ Download successful:', downloadDest);
         
-        // Show simple success message
+        // Show success message immediately
         Alert.alert(
           'Download Complete',
           'File downloaded successfully!',
@@ -225,7 +242,7 @@ const DashboardScreen = ({ navigation }) => {
       }
 
     } catch (error) {
-      console.error('Download error:', error);
+      console.error('❌ Download error:', error);
       Alert.alert('Download Failed', `Failed to download file: ${error.message}`);
     }
   };
@@ -410,7 +427,10 @@ const DashboardScreen = ({ navigation }) => {
       } else {
         // Try to download the file
         console.log('📥 Attempting to download from navigation URL:', url);
-        handleFileDownload(url);
+        setIsLoading(true);
+        handleFileDownload(url).finally(() => {
+          setIsLoading(false);
+        });
         return;
       }
     }
@@ -862,8 +882,13 @@ const DashboardScreen = ({ navigation }) => {
                     /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|txt|csv|png|jpg|jpeg|gif|bmp|webp)(\?|$)/i.test(request.url)) {
                   console.log('📥 File download URL detected in navigation:', request.url);
                   
+                  // Show immediate loading feedback
+                  setIsLoading(true);
+                  
                   // Try to download the file instead of navigating
-                  handleFileDownload(request.url);
+                  handleFileDownload(request.url).finally(() => {
+                    setIsLoading(false);
+                  });
                   return false; // Prevent navigation
                 }
                 
