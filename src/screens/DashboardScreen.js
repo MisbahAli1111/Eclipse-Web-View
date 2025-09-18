@@ -227,16 +227,8 @@ const DashboardScreen = ({ navigation }) => {
         console.log('✅ Download successful:', downloadDest);
         
         // Show success message immediately
-        Alert.alert(
-          'Download Complete',
-          'File downloaded successfully!',
-          [
-            { 
-              text: 'Save to Files', 
-              onPress: () => shareFile(downloadDest, uniqueFileName)
-            }
-          ]
-        );
+          shareFile(downloadDest, uniqueFileName)
+   
       } else {
         throw new Error(`Download failed with status code: ${downloadResult.statusCode}`);
       }
@@ -248,97 +240,84 @@ const DashboardScreen = ({ navigation }) => {
   };
 
   // Handle blob downloads (base64 data)
-  const handleBlobDownload = async (fileName, base64Data, mimeType) => {
-    try {
-      console.log('Blob download requested:', fileName);
-      console.log('RNFS paths:', {
-        DocumentDirectoryPath: RNFS.DocumentDirectoryPath,
-        DownloadDirectoryPath: RNFS.DownloadDirectoryPath,
-        CachesDirectoryPath: RNFS.CachesDirectoryPath
-      });
+  // const handleBlobDownload = async (fileName, base64Data, mimeType) => {
+  //   try {
+  //     console.log('Blob download requested:', fileName);
+  //     console.log('RNFS paths:', {
+  //       DocumentDirectoryPath: RNFS.DocumentDirectoryPath,
+  //       DownloadDirectoryPath: RNFS.DownloadDirectoryPath,
+  //       CachesDirectoryPath: RNFS.CachesDirectoryPath
+  //     });
       
-      // Request download permissions first
-      const hasPermissions = await requestPermissions(true);
-      if (!hasPermissions) {
-        Alert.alert('Permission Required', 'Storage permission is needed to download files. Please enable it in Settings.');
-        return;
-      }
+  //     // Request download permissions first
+  //     const hasPermissions = await requestPermissions(true);
+  //     if (!hasPermissions) {
+  //       Alert.alert('Permission Required', 'Storage permission is needed to download files. Please enable it in Settings.');
+  //       return;
+  //     }
 
-      // Ensure unique filename
-      const timestamp = Date.now();
-      const fileExtension = fileName.includes('.') ? fileName.split('.').pop() : 'pdf';
-      const baseFileName = fileName.includes('.') ? fileName.replace(/\.[^/.]+$/, "") : fileName.replace(/\.[^/.]+$/, "");
-      const uniqueFileName = `${baseFileName}_${timestamp}.${fileExtension}`;
+  //     // Ensure unique filename
+  //     const timestamp = Date.now();
+  //     const fileExtension = fileName.includes('.') ? fileName.split('.').pop() : 'pdf';
+  //     const baseFileName = fileName.includes('.') ? fileName.replace(/\.[^/.]+$/, "") : fileName.replace(/\.[^/.]+$/, "");
+  //     const uniqueFileName = `${baseFileName}_${timestamp}.${fileExtension}`;
 
-      // Download path - save to accessible location
-      let downloadDest;
-      if (Platform.OS === 'android') {
-        downloadDest = `${RNFS.DownloadDirectoryPath}/${uniqueFileName}`;
-      } else {
-        // On iOS, save to temp location for sharing
-        downloadDest = `${RNFS.CachesDirectoryPath}/${uniqueFileName}`;
-      }
+  //     // Download path - save to accessible location
+  //     let downloadDest;
+  //     if (Platform.OS === 'android') {
+  //       downloadDest = `${RNFS.DownloadDirectoryPath}/${uniqueFileName}`;
+  //     } else {
+  //       // On iOS, save to temp location for sharing
+  //       downloadDest = `${RNFS.CachesDirectoryPath}/${uniqueFileName}`;
+  //     }
 
-      console.log('Saving blob to:', downloadDest);
-      console.log('Base64 data length:', base64Data.length);
-      console.log('MIME type:', mimeType);
+  //     console.log('Saving blob to:', downloadDest);
+  //     console.log('Base64 data length:', base64Data.length);
+  //     console.log('MIME type:', mimeType);
 
-      // Check if directory exists and create if needed
-      const dirPath = Platform.OS === 'android' 
-        ? RNFS.DownloadDirectoryPath 
-        : RNFS.CachesDirectoryPath;
+  //     // Check if directory exists and create if needed
+  //     const dirPath = Platform.OS === 'android' 
+  //       ? RNFS.DownloadDirectoryPath 
+  //       : RNFS.CachesDirectoryPath;
       
-      const dirExists = await RNFS.exists(dirPath);
-      console.log('Directory exists:', dirExists, dirPath);
+  //     const dirExists = await RNFS.exists(dirPath);
+  //     console.log('Directory exists:', dirExists, dirPath);
       
-      if (!dirExists) {
-        await RNFS.mkdir(dirPath);
-        console.log('Created directory:', dirPath);
-      }
+  //     if (!dirExists) {
+  //       await RNFS.mkdir(dirPath);
+  //       console.log('Created directory:', dirPath);
+  //     }
 
-      // Test write a simple text file first
-      const testPath = `${dirPath}/test.txt`;
-      try {
-        await RNFS.writeFile(testPath, 'Hello World', 'utf8');
-        const testExists = await RNFS.exists(testPath);
-        console.log('Test file write successful:', testExists);
-        if (testExists) {
-          await RNFS.unlink(testPath); // Clean up test file
-        }
-      } catch (testError) {
-        console.error('Test file write failed:', testError);
-      }
+  //     // Test write a simple text file first
+  //     const testPath = `${dirPath}/test.txt`;
+  //     try {
+  //       await RNFS.writeFile(testPath, 'Hello World', 'utf8');
+  //       const testExists = await RNFS.exists(testPath);
+  //       console.log('Test file write successful:', testExists);
+  //       if (testExists) {
+  //         await RNFS.unlink(testPath); // Clean up test file
+  //       }
+  //     } catch (testError) {
+  //       console.error('Test file write failed:', testError);
+  //     }
 
-      // Write base64 data to file
-      console.log('Writing base64 data...');
-      await RNFS.writeFile(downloadDest, base64Data, 'base64');
-      console.log('Base64 write completed');
+  //     // Write base64 data to file
+  //     console.log('Writing base64 data...');
+  //     await RNFS.writeFile(downloadDest, base64Data, 'base64');
+  //     console.log('Base64 write completed');
       
-      // Verify file was written
-      const fileExists = await RNFS.exists(downloadDest);
-      const fileStats = fileExists ? await RNFS.stat(downloadDest) : null;
+  //     // Verify file was written
+  //     const fileExists = await RNFS.exists(downloadDest);
+  //     const fileStats = fileExists ? await RNFS.stat(downloadDest) : null;
       
-      console.log('File exists after write:', fileExists);
-      console.log('File stats:', fileStats);
-      console.log('Blob download successful:', downloadDest);
-      
-      // Show simple success message
-      Alert.alert(
-        'Download Complete',
-        'File downloaded successfully!',
-        [
-          { 
-            text: 'Save to Files', 
-            onPress: () => shareFile(downloadDest, uniqueFileName)
-          }
-        ]
-      );
+  //    shareFile(downloadDest, uniqueFileName)
+   
 
-    } catch (error) {
-      console.error('Blob download error:', error);
-      Alert.alert('Download Failed', `Failed to download file: ${error.message}`);
-    }
-  };
+  //   } catch (error) {
+  //     console.error('Blob download error:', error);
+  //     Alert.alert('Download Failed', `Failed to download file: ${error.message}`);
+  //   }
+  // };
 
   // Save file to user accessible location
   const shareFile = async (filePath, fileName) => {
@@ -410,31 +389,7 @@ const DashboardScreen = ({ navigation }) => {
     setIsLoading(navState.loading);
     
     const url = navState.url;
-    console.log('Navigation state changed to:', url);
-    
-    // Check if this navigation is actually a download attempt
-    if (url.includes('download') || 
-        url.includes('export') || 
-        url.includes('blob:') ||
-        url.includes('/app/public/') ||
-        /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|txt|csv|png|jpg|jpeg|gif|bmp|webp)(\?|$)/i.test(url)) {
-      console.log('📥 Download detected in navigation change, attempting to handle...', url);
-      
-      if (url.startsWith('blob:')) {
-        console.log('Blob URL detected in navigation, this should have been intercepted');
-        // Don't navigate, let blob handling work
-        return;
-      } else {
-        // Try to download the file
-        console.log('📥 Attempting to download from navigation URL:', url);
-        setIsLoading(true);
-        handleFileDownload(url).finally(() => {
-          setIsLoading(false);
-        });
-        return;
-      }
-    }
-    
+ 
     if (url.includes('/v1/login')) {
       await SessionService.clearSession();
       navigation.reset({
@@ -748,16 +703,8 @@ const DashboardScreen = ({ navigation }) => {
     } else if (message === 'DOWNLOAD_PREVENTED_IN_CAPTURE') {
       console.log('🚫 Download click prevented in capture phase');
       Alert.alert('Download Detected', 'Download button click was intercepted. Attempting to process download...');
-    } else if (message.startsWith('BLOB_DOWNLOAD_READY:')) {
-      try {
-        const blobData = JSON.parse(message.replace('BLOB_DOWNLOAD_READY:', ''));
-        console.log('✅ Blob download ready:', blobData.fileName);
-        handleBlobDownload(blobData.fileName, blobData.base64Data, blobData.mimeType);
-      } catch (error) {
-        console.error('Error parsing blob download data:', error);
-        Alert.alert('Download Error', 'Failed to process blob download data');
-      }
-    } else if (message.startsWith('BLOB_DOWNLOAD_ERROR:')) {
+    } 
+    else if (message.startsWith('BLOB_DOWNLOAD_ERROR:')) {
       console.error('Blob download error:', message.split(':')[1]);
       Alert.alert('Download Error', 'Failed to process blob download');
     } else if (message.startsWith('BLOB_PROCESSING_ERROR:')) {
@@ -829,7 +776,6 @@ const DashboardScreen = ({ navigation }) => {
               allowFileAccessFromFileURLs={true}
               // Allow blob and data URLs
               originWhitelist={['*']}
-              dataDetectorTypes="none"
               // iOS specific file upload handling
               onShouldStartLoadWithRequest={(request) => {
                 console.log('Should start load with request:', request.url);
