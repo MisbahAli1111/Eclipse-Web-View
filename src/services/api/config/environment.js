@@ -1,7 +1,8 @@
 import { API_URLS } from './apiUrls';
 
 // Environment Configuration
-// Change this to 'production' when you want to use production URLs
+// Change this to switch between environments: 'development', 'staging', or 'production'
+// const CURRENT_ENVIRONMENT = 'development';
 const CURRENT_ENVIRONMENT = 'staging';
 
 // const CURRENT_ENVIRONMENT = 'production';
@@ -26,5 +27,6 @@ export const getTenantSearchUrl = () => {
 
 // Environment info
 export const getCurrentEnvironment = () => CURRENT_ENVIRONMENT;
-export const isProduction = () => CURRENT_ENVIRONMENT === 'production';
+export const isDevelopment = () => CURRENT_ENVIRONMENT === 'development';
 export const isStaging = () => CURRENT_ENVIRONMENT === 'staging';
+export const isProduction = () => CURRENT_ENVIRONMENT === 'production';

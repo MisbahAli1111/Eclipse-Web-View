@@ -390,7 +390,7 @@ const DashboardScreen = ({ navigation }) => {
     
     const url = navState.url;
  
-    if (url.includes('/v1/login')) {
+    if (url.includes('/login')) {
       await SessionService.clearSession();
       navigation.reset({
         index: 0,
