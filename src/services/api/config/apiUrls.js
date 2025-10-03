@@ -15,14 +15,14 @@ export const API_URLS = {
 
   staging: {
     tenant: {
-      base: (tenantId) => `https://${tenantId}.stg-tenant.eclipsescheduling.com`,
+      base: (tenantId) => `https://${tenantId}.stage.eclipsescheduling.com`,
       auth: {
-        token: (tenantId) => `https://${tenantId}.stg-tenant.eclipsescheduling.com/api/auth/token`,
+        token: (tenantId) => `https://${tenantId}.stage.eclipsescheduling.com/api/auth/token`,
       },
-      dashboard: (tenantId) => `https://${tenantId}.stg-tenant.eclipsescheduling.com/v1/provider/dashboard`,
+      dashboard: (tenantId) => `https://${tenantId}.stage.eclipsescheduling.com/v1/provider/dashboard`,
     },
     tenantSearch: {
-      search: 'https://test.stg-tenant.eclipsescheduling.com/api/tenant-users/search',
+      search: 'https://gold.stage.eclipsescheduling.com/api/tenant-users/search',
     }
   },
   

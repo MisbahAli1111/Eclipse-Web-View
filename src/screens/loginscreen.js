@@ -28,6 +28,7 @@ import { TenantModal } from '../components/TenantModal';
 import { AuthService } from '../services/api/AuthService';
 import { TenantService } from '../services/api/TenantService';
 import { BiometricService } from '../services/api/BiometricService';
+import { getDashboardUrl } from '../services/api/config';
 
 
 // NEW: Create biometric instance once
@@ -66,7 +67,7 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                   
                   if (tenantId) {
                     navigation.replace('Dashboard', {
-                      webViewUrl: `https://${tenantId}.stg-tenant.eclipsescheduling.com/v1/provider/dashboard`
+                      webViewUrl: getDashboardUrl(tenantId)
                     });
                   }
                 }
@@ -220,6 +221,7 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
               try {
                 const { token, webViewUrl } = await AuthService.getToken(tenant.tenant_id, email, password);
+                console.log('[Login] Tenant selection successful:', { token, webViewUrl });
                 setWebViewUrl(webViewUrl);
                 setShowWebView(true);
                 navigation.replace('Dashboard');
