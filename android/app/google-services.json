@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "683006580897",
+    "project_id": "eclipse-scheduling",
+    "storage_bucket": "eclipse-scheduling.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:683006580897:android:3c82be05c734eda328b8e0",
+        "android_client_info": {
+          "package_name": "com.eclipseappview"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHN6Jb33nwKOLDpIAYcmY8uX7vZzlHRQ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,27 +1,11 @@
 
 // screens/LoginScreen.js
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  ActivityIndicator,
-  Modal,
-  FlatList,
-  Platform,
-  Alert
-} from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
 import ReactNativeBiometrics from 'react-native-biometrics';
-import * as Keychain from 'react-native-keychain'; // NEW: For secure credential storage
-import AsyncStorage from '@react-native-async-storage/async-storage'; // NEW: For session management
 import { AppState } from 'react-native';
-import { SessionService } from '../services/session'; // Import your session service
-import { WebViewComponent } from '../components/WebviewComponent';
+import { SessionService } from '../services/session';
 import { LoginForm } from '../components/LoginForm';
 import { BiometricModal } from '../components/BiometricModal';
 import { TenantModal } from '../components/TenantModal';
@@ -29,9 +13,9 @@ import { AuthService } from '../services/api/AuthService';
 import { TenantService } from '../services/api/TenantService';
 import { BiometricService } from '../services/api/BiometricService';
 import { getDashboardUrl } from '../services/api/config';
+import CrashAnalyticsService from '../services/CrashAnalyticsService';
 
-
-// NEW: Create biometric instance once
+// Create biometric instance once
 const rnBiometrics = new ReactNativeBiometrics();
 
 export default function LoginScreen({ navigation }) {
@@ -48,14 +32,11 @@ export default function LoginScreen({ navigation }) {
   const [isBiometricChecked, setIsBiometricChecked] = useState(false); // NEW
   const [showEnrollBiometricModal, setShowEnrollBiometricModal] = useState(false);
   const [isEnrollingBiometric, setIsEnrollingBiometric] = useState(false);
-  const [tempCredentials, setTempCredentials] = useState(null); // To hold credentials during enrollment
+  const [tempCredentials, setTempCredentials] = useState(null);
 
-
-  // Top of file (after imports)
-const SESSION_KEYS = ['@last_active', '@current_tenant', '@user_email'];
-  // Add this constant near your other constants
-const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 30 days in production  
-
+  useEffect(() => {
+    CrashAnalyticsService.logScreenView('LoginScreen');
+  }, []);
 
   // Check for auto-login on component mount
         useEffect(() => {
@@ -115,6 +96,7 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                   }
                 } catch (error) {
                   console.error('[Login] Biometric initialization error:', error);
+                  CrashAnalyticsService.recordError(error, 'Biometric Initialization');
                 } finally {
                   setIsBiometricChecked(true);
                 }
@@ -122,11 +104,6 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
 
               initBiometrics();
             }, []);
-
-            const updateLastActive = async () => {
-              const now = Date.now();
-              await AsyncStorage.setItem('@last_active', now.toString());
-            };
 
             // Handle biometric login
             const handleBiometricLogin = async () => {
@@ -175,6 +152,7 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                     }
                   } catch (error) {
                     console.error('[Login] Face ID tenant fetch error:', error);
+                    CrashAnalyticsService.logAuthFailure(error, 'biometric');
                     
                     // Provide more specific error messages
                     let errorMessage = 'Authentication failed. ';
@@ -222,11 +200,20 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
               try {
                 const { token, webViewUrl } = await AuthService.getToken(tenant.tenant_id, email, password);
                 console.log('[Login] Tenant selection successful:', { token, webViewUrl });
+                
+                // Log successful authentication
+                await CrashAnalyticsService.logUserSignIn({
+                  email: email,
+                  username: email,
+                  tenant_id: tenant.tenant_id,
+                });
+                
                 setWebViewUrl(webViewUrl);
                 setShowWebView(true);
                 navigation.replace('Dashboard');
               } catch (error) {
                 console.error('[Login] Tenant selection error:', error);
+                CrashAnalyticsService.logCriticalFailure('Tenant Selection', error);
                 alert(`Login failed: ${error.message}`);
               } finally {
                 setIsLoading(false);
@@ -289,6 +276,7 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
                 }
               } catch (error) {
                 console.error('[Login] Login error:', error);
+                CrashAnalyticsService.logAuthFailure(error, 'password');
                 Alert.alert('Error', error.message || 'Login failed. Please try again.');
               } finally {
                 setIsLoading(false);
@@ -355,41 +343,6 @@ const INACTIVITY_LIMIT = 30 * 24 * 60 * 60 * 1000; // 1 minute for testing  || 3
               }
             };
     
-  const onShouldStartLoadWithRequest = (request) => {
-
-
-
-    // Add any URL filtering logic here if needed
-    return true;
-  };
-
-  const injectJavaScript = `
-    setTimeout(() => {
-      try {
-        // Get token from the API response
-        const token = window.localStorage.getItem('authToken');
-        
-        if (!token) {
-          // If token not found, we might need to handle that case
-          window.ReactNativeWebView.postMessage('No token found');
-          return;
-        }
-
-        // Update localStorage and cookies if needed
-        window.localStorage.setItem('authToken', token);
-        
-        // Send success message back to React Native
-        window.ReactNativeWebView.postMessage('Token injected successfully');
-
-        // Send feedback to React Native
-        window.ReactNativeWebView.postMessage('Credentials injected');
-      } catch (error) {
-        console.error('Auto-login script error:', error);
-        window.ReactNativeWebView.postMessage('Error: ' + error.message);
-      }
-    }, 1500); // Increased delay to ensure page is fully loaded
-    true;
-  `;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>

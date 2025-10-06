@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, BackHandler, ActivityIndicator, Alert, Platform, PermissionsAndroid, Linking, Share } from 'react-native';
+import { View, Text, StyleSheet, BackHandler, ActivityIndicator, Alert, Platform, PermissionsAndroid, Linking, Share, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
@@ -8,6 +8,7 @@ import { getDashboardUrl } from '../services/api/config';
 import Loader from '../components/Loader';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import RNFS from 'react-native-fs';
+import CrashAnalyticsService from '../services/CrashAnalyticsService';
 
 const DashboardScreen = ({ navigation }) => {
   const [webViewUrl, setWebViewUrl] = useState('');
@@ -344,10 +345,14 @@ const DashboardScreen = ({ navigation }) => {
   useEffect(() => {
     const loadDashboard = async () => {
       try {
+        CrashAnalyticsService.logScreenView('DashboardScreen');
+        
         const isValid = await SessionService.isSessionValid();
         
         if (!isValid) {
+          CrashAnalyticsService.log('Session invalid - redirecting to login');
           await SessionService.clearSession();
+          await CrashAnalyticsService.clearUserData();
           navigation.replace('Login');
           return;
         }
@@ -364,6 +369,7 @@ const DashboardScreen = ({ navigation }) => {
         
         await SessionService.updateLastActive();
       } catch (error) {
+        CrashAnalyticsService.logCriticalFailure('Dashboard Load', error);
         setHasError(true);
         Alert.alert('Error', 'Failed to load dashboard. Please login again.');
         await SessionService.clearSession();
@@ -385,13 +391,40 @@ const DashboardScreen = ({ navigation }) => {
     };
   }, [navigation]);
 
+  // 🔄 AppState listener to detect when app comes back from background
+  // This prevents blank WebView after long inactivity (2+ hours)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      console.log('AppState changed to:', nextAppState);
+      
+      if (nextAppState === 'active') {
+        console.log('App resumed from background - reloading WebView to recover from potential blank state');
+        CrashAnalyticsService.log('App resumed - reloading WebView');
+        
+        // Reload WebView to recover from:
+        // 1. Killed WebView process (iOS WKWebView suspension)
+        // 2. Destroyed WebView under memory pressure (Android)
+        // 3. Expired session cookies (Laravel session timeout)
+        webViewRef.current?.reload();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   const handleNavigationChange = async (navState) => {
     setIsLoading(navState.loading);
     
     const url = navState.url;
  
     if (url.includes('/login')) {
+      CrashAnalyticsService.log('User logged out - session expired or manual logout');
       await SessionService.clearSession();
+      await CrashAnalyticsService.clearUserData();
       navigation.reset({
         index: 0,
         routes: [{ name: 'Login' }]
@@ -408,6 +441,31 @@ const DashboardScreen = ({ navigation }) => {
       console.log('Handling client-side exception gracefully');
       return;
     }
+    
+    // Check if this is a network error that can be recovered by reloading
+    const isNetworkError = nativeEvent.description && (
+      nativeEvent.description.includes('ERR_INTERNET_DISCONNECTED') ||
+      nativeEvent.description.includes('ERR_NETWORK_CHANGED') ||
+      nativeEvent.description.includes('ERR_CONNECTION_TIMED_OUT') ||
+      nativeEvent.description.includes('ERR_CONNECTION_REFUSED') ||
+      nativeEvent.description.includes('net::ERR_')
+    );
+    
+    if (isNetworkError) {
+      console.log('Network error detected - attempting reload:', nativeEvent.description);
+      CrashAnalyticsService.log('Network error - attempting WebView reload');
+      // Attempt to reload after a short delay
+      setTimeout(() => {
+        webViewRef.current?.reload();
+      }, 1000);
+      return;
+    }
+    
+    // Log critical WebView errors
+    CrashAnalyticsService.recordError(
+      new Error(nativeEvent.description || 'WebView load failed'),
+      'WebView Error'
+    );
     
     setHasError(true);
     setIsLoading(false);
@@ -750,7 +808,16 @@ const DashboardScreen = ({ navigation }) => {
               injectedJavaScript={injectJavaScript}
               onMessage={handleWebViewMessage}
               onLoadStart={() => {}}
-              onLoadEnd={() => {}}
+              onLoadEnd={({ nativeEvent }) => {
+                // Detect silent WebView failures (common after long inactivity)
+                if (nativeEvent.description === 'net::ERR_FAILED' || 
+                    nativeEvent.description?.includes('ERR_') ||
+                    nativeEvent.title === '') {
+                  console.log('WebView load failed silently - reloading:', nativeEvent.description);
+                  CrashAnalyticsService.log('WebView silent failure detected - reloading');
+                  webViewRef.current?.reload();
+                }
+              }}
               // File upload support
               allowsInlineMediaPlayback={true}
               mediaPlaybackRequiresUserAction={false}
