@@ -33,7 +33,7 @@ target 'EclipseAppView' do
     # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
-  
+  pod 'RNFBAnalytics', path: '../node_modules/@react-native-firebase/analytics'
   # Explicitly declare Firebase dependencies with modular headers
   pod 'FirebaseCore', :modular_headers => true
   pod 'FirebaseCoreExtension', :modular_headers => true
