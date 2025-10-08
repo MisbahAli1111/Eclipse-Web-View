@@ -9,6 +9,7 @@ import Loader from '../components/Loader';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import RNFS from 'react-native-fs';
 import CrashAnalyticsService from '../services/CrashAnalyticsService';
+import analytics from '@react-native-firebase/analytics';
 
 const DashboardScreen = ({ navigation }) => {
   const [webViewUrl, setWebViewUrl] = useState('');
@@ -227,6 +228,13 @@ const DashboardScreen = ({ navigation }) => {
       if (downloadResult.statusCode === 200) {
         console.log('✅ Download successful:', downloadDest);
         
+        // Log successful file download
+        await analytics().logEvent('file_downloaded', {
+          file_name: uniqueFileName,
+          file_type: fileExtension,
+          duration_seconds: parseFloat(duration),
+        });
+        
         // Show success message immediately
           shareFile(downloadDest, uniqueFileName)
    
@@ -236,6 +244,12 @@ const DashboardScreen = ({ navigation }) => {
 
     } catch (error) {
       console.error('❌ Download error:', error);
+      
+      // Log failed file download
+      await analytics().logEvent('file_download_failed', {
+        error_message: error.message || 'Unknown error',
+      });
+      
       Alert.alert('Download Failed', `Failed to download file: ${error.message}`);
     }
   };
@@ -368,8 +382,19 @@ const DashboardScreen = ({ navigation }) => {
         setIsLoading(false);
         
         await SessionService.updateLastActive();
+        
+        // Log successful dashboard load
+        await analytics().logEvent('dashboard_loaded', {
+          tenant_id: tenantId,
+        });
       } catch (error) {
         CrashAnalyticsService.logCriticalFailure('Dashboard Load', error);
+        
+        // Log dashboard load failure
+        await analytics().logEvent('dashboard_load_failed', {
+          error_message: error.message || 'Unknown error',
+        });
+        
         setHasError(true);
         Alert.alert('Error', 'Failed to load dashboard. Please login again.');
         await SessionService.clearSession();
@@ -423,6 +448,12 @@ const DashboardScreen = ({ navigation }) => {
  
     if (url.includes('/login')) {
       CrashAnalyticsService.log('User logged out - session expired or manual logout');
+      
+      // Log logout event
+      await analytics().logEvent('user_logout', {
+        reason: 'session_expired_or_manual',
+      });
+      
       await SessionService.clearSession();
       await CrashAnalyticsService.clearUserData();
       navigation.reset({
