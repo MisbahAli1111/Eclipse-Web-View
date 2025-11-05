@@ -8,8 +8,6 @@ import { getDashboardUrl } from '../services/api/config';
 import Loader from '../components/Loader';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import RNFS from 'react-native-fs';
-import CrashAnalyticsService from '../services/CrashAnalyticsService';
-import analytics from '@react-native-firebase/analytics';
 
 const DashboardScreen = ({ navigation }) => {
   const [webViewUrl, setWebViewUrl] = useState('');
@@ -228,13 +226,6 @@ const DashboardScreen = ({ navigation }) => {
       if (downloadResult.statusCode === 200) {
         console.log('✅ Download successful:', downloadDest);
         
-        // Log successful file download
-        await analytics().logEvent('file_downloaded', {
-          file_name: uniqueFileName,
-          file_type: fileExtension,
-          duration_seconds: parseFloat(duration),
-        });
-        
         // Show success message immediately
           shareFile(downloadDest, uniqueFileName)
    
@@ -244,11 +235,6 @@ const DashboardScreen = ({ navigation }) => {
 
     } catch (error) {
       console.error('❌ Download error:', error);
-      
-      // Log failed file download
-      await analytics().logEvent('file_download_failed', {
-        error_message: error.message || 'Unknown error',
-      });
       
       Alert.alert('Download Failed', `Failed to download file: ${error.message}`);
     }
@@ -359,14 +345,10 @@ const DashboardScreen = ({ navigation }) => {
   useEffect(() => {
     const loadDashboard = async () => {
       try {
-        CrashAnalyticsService.logScreenView('DashboardScreen');
-        
         const isValid = await SessionService.isSessionValid();
         
         if (!isValid) {
-          CrashAnalyticsService.log('Session invalid - redirecting to login');
           await SessionService.clearSession();
-          await CrashAnalyticsService.clearUserData();
           navigation.replace('Login');
           return;
         }
@@ -382,19 +364,7 @@ const DashboardScreen = ({ navigation }) => {
         setIsLoading(false);
         
         await SessionService.updateLastActive();
-        
-        // Log successful dashboard load
-        await analytics().logEvent('dashboard_loaded', {
-          tenant_id: tenantId,
-        });
       } catch (error) {
-        CrashAnalyticsService.logCriticalFailure('Dashboard Load', error);
-        
-        // Log dashboard load failure
-        await analytics().logEvent('dashboard_load_failed', {
-          error_message: error.message || 'Unknown error',
-        });
-        
         setHasError(true);
         Alert.alert('Error', 'Failed to load dashboard. Please login again.');
         await SessionService.clearSession();
@@ -424,7 +394,6 @@ const DashboardScreen = ({ navigation }) => {
       
       if (nextAppState === 'active') {
         console.log('App resumed from background - reloading WebView to recover from potential blank state');
-        CrashAnalyticsService.log('App resumed - reloading WebView');
         
         // Reload WebView to recover from:
         // 1. Killed WebView process (iOS WKWebView suspension)
@@ -447,15 +416,7 @@ const DashboardScreen = ({ navigation }) => {
     const url = navState.url;
  
     if (url.includes('/login')) {
-      CrashAnalyticsService.log('User logged out - session expired or manual logout');
-      
-      // Log logout event
-      await analytics().logEvent('user_logout', {
-        reason: 'session_expired_or_manual',
-      });
-      
       await SessionService.clearSession();
-      await CrashAnalyticsService.clearUserData();
       navigation.reset({
         index: 0,
         routes: [{ name: 'Login' }]
@@ -484,19 +445,12 @@ const DashboardScreen = ({ navigation }) => {
     
     if (isNetworkError) {
       console.log('Network error detected - attempting reload:', nativeEvent.description);
-      CrashAnalyticsService.log('Network error - attempting WebView reload');
       // Attempt to reload after a short delay
       setTimeout(() => {
         webViewRef.current?.reload();
       }, 1000);
       return;
     }
-    
-    // Log critical WebView errors
-    CrashAnalyticsService.recordError(
-      new Error(nativeEvent.description || 'WebView load failed'),
-      'WebView Error'
-    );
     
     setHasError(true);
     setIsLoading(false);
@@ -845,7 +799,6 @@ const DashboardScreen = ({ navigation }) => {
                     nativeEvent.description?.includes('ERR_') ||
                     nativeEvent.title === '') {
                   console.log('WebView load failed silently - reloading:', nativeEvent.description);
-                  CrashAnalyticsService.log('WebView silent failure detected - reloading');
                   webViewRef.current?.reload();
                 }
               }}

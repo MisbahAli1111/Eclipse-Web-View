@@ -13,8 +13,6 @@ import { AuthService } from '../services/api/AuthService';
 import { TenantService } from '../services/api/TenantService';
 import { BiometricService } from '../services/api/BiometricService';
 import { getDashboardUrl } from '../services/api/config';
-import CrashAnalyticsService from '../services/CrashAnalyticsService';
-import analytics from '@react-native-firebase/analytics';
 // Create biometric instance once
 const rnBiometrics = new ReactNativeBiometrics();
 
@@ -34,9 +32,6 @@ export default function LoginScreen({ navigation }) {
   const [isEnrollingBiometric, setIsEnrollingBiometric] = useState(false);
   const [tempCredentials, setTempCredentials] = useState(null);
 
-  useEffect(() => {
-    CrashAnalyticsService.logScreenView('LoginScreen');
-  }, []);
 
   // Check for auto-login on component mount
         useEffect(() => {
@@ -96,7 +91,6 @@ export default function LoginScreen({ navigation }) {
                   }
                 } catch (error) {
                   console.error('[Login] Biometric initialization error:', error);
-                  CrashAnalyticsService.recordError(error, 'Biometric Initialization');
                 } finally {
                   setIsBiometricChecked(true);
                 }
@@ -142,11 +136,6 @@ export default function LoginScreen({ navigation }) {
                     
                     console.log('[Login] Face ID tenant fetch successful:', { count, tenants: tenants?.length });
                     
-                    // Log successful biometric login
-                    await analytics().logLogin({
-                      method: 'biometric',
-                    });
-                    
                     setTenants(tenants);
                     if (count === 1) {
                       const { token, webViewUrl } = await AuthService.getToken(tenants[0].tenant_id, credentials.username, credentials.password);
@@ -158,13 +147,6 @@ export default function LoginScreen({ navigation }) {
                     }
                   } catch (error) {
                     console.error('[Login] Face ID tenant fetch error:', error);
-                    CrashAnalyticsService.logAuthFailure(error, 'biometric');
-                    
-                    // Log failed biometric login
-                    await analytics().logEvent('login_failed', {
-                      method: 'biometric',
-                      error_message: error.message || 'Unknown error',
-                    });
                     
                     // Provide more specific error messages
                     let errorMessage = 'Authentication failed. ';
@@ -213,31 +195,11 @@ export default function LoginScreen({ navigation }) {
                 const { token, webViewUrl } = await AuthService.getToken(tenant.tenant_id, email, password);
                 console.log('[Login] Tenant selection successful:', { token, webViewUrl });
                 
-                // Log successful authentication
-                await CrashAnalyticsService.logUserSignIn({
-                  email: email,
-                  username: email,
-                  tenant_id: tenant.tenant_id,
-                });
-                
-                // Log tenant selection
-                await analytics().logEvent('tenant_selected', {
-                  tenant_id: tenant.tenant_id,
-                  tenant_name: tenant.tenant_name || 'Unknown',
-                });
-                
                 setWebViewUrl(webViewUrl);
                 setShowWebView(true);
                 navigation.replace('Dashboard');
               } catch (error) {
                 console.error('[Login] Tenant selection error:', error);
-                CrashAnalyticsService.logCriticalFailure('Tenant Selection', error);
-                
-                // Log tenant selection failure
-                await analytics().logEvent('tenant_selection_failed', {
-                  tenant_id: tenant.tenant_id,
-                  error_message: error.message || 'Unknown error',
-                });
                 
                 alert(`Login failed: ${error.message}`);
               } finally {
@@ -258,11 +220,6 @@ export default function LoginScreen({ navigation }) {
                 const { tenants, count } = await TenantService.getTenants(email , password);
                 
                 console.log('[Login] Regular login successful:', { count, tenants: tenants?.length });
-                
-                // Log successful login
-                await analytics().logLogin({
-                  method: 'email_password',
-                });
                 
                 setTenants(tenants);
                 
@@ -307,13 +264,6 @@ export default function LoginScreen({ navigation }) {
                 }
               } catch (error) {
                 console.error('[Login] Login error:', error);
-                CrashAnalyticsService.logAuthFailure(error, 'password');
-                
-                // Log failed login
-                await analytics().logEvent('login_failed', {
-                  method: 'email_password',
-                  error_message: error.message || 'Unknown error',
-                });
                 
                 Alert.alert('Error', error.message || 'Login failed. Please try again.');
               } finally {
