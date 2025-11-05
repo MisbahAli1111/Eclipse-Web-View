@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "810984463657",
+    "project_id": "eclipse-webview",
+    "storage_bucket": "eclipse-webview.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:810984463657:android:51088390a865f28b8c6b38",
+        "android_client_info": {
+          "package_name": "com.eclipseappview"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB941MT7YBZKr29Q_dHc9yBHv2BylR94uk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

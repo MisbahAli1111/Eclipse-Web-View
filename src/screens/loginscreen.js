@@ -13,6 +13,7 @@ import { AuthService } from '../services/api/AuthService';
 import { TenantService } from '../services/api/TenantService';
 import { BiometricService } from '../services/api/BiometricService';
 import { getDashboardUrl } from '../services/api/config';
+import firebase from '@react-native-firebase/app';
 // Create biometric instance once
 const rnBiometrics = new ReactNativeBiometrics();
 
@@ -32,6 +33,7 @@ export default function LoginScreen({ navigation }) {
   const [isEnrollingBiometric, setIsEnrollingBiometric] = useState(false);
   const [tempCredentials, setTempCredentials] = useState(null);
 
+  console.log('sds',firebase.app().name);
 
   // Check for auto-login on component mount
         useEffect(() => {
