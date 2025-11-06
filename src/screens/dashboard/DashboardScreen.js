@@ -3,9 +3,9 @@ import { View, Text, StyleSheet, BackHandler, ActivityIndicator, Alert, Platform
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
-import { SessionService } from '../services/session';
-import { getDashboardUrl } from '../services/api/config';
-import Loader from '../components/Loader';
+import { SessionService } from '../../services/session';
+import { getDashboardUrl } from '../../services/api/config';
+import Loader from '../../components/Loader';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import RNFS from 'react-native-fs';
 

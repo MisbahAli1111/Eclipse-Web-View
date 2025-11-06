@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "810984463657",
-    "project_id": "eclipse-webview",
-    "storage_bucket": "eclipse-webview.firebasestorage.app"
+    "project_number": "683006580897",
+    "project_id": "eclipse-scheduling",
+    "storage_bucket": "eclipse-scheduling.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:810984463657:android:51088390a865f28b8c6b38",
+        "mobilesdk_app_id": "1:683006580897:android:3c82be05c734eda328b8e0",
         "android_client_info": {
           "package_name": "com.eclipseappview"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyB941MT7YBZKr29Q_dHc9yBHv2BylR94uk"
+          "current_key": "AIzaSyAHN6Jb33nwKOLDpIAYcmY8uX7vZzlHRQ8"
         }
       ],
       "services": {

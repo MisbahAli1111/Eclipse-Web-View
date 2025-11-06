@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Image } from 'react-native';
-import { SessionService } from '../services/session';
-import { getDashboardUrl } from '../services/api/config';
+import { SessionService } from '../../services/session';
+import { getDashboardUrl } from '../../services/api/config';
 
 export default function SplashScreen({ navigation }) {
   useEffect(() => {
@@ -30,7 +30,7 @@ export default function SplashScreen({ navigation }) {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
       <Image
-        source={require('../../assets/eclipseLogo3D.png')}
+        source={require('../../../assets/eclipseLogo3D.png')}
         style={{ width: 120, height: 120, resizeMode: 'contain' }}
       />
     </View>

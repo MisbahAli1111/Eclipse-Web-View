@@ -5,15 +5,15 @@ import { View, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ReactNativeBiometrics from 'react-native-biometrics';
 import { AppState } from 'react-native';
-import { SessionService } from '../services/session';
-import { LoginForm } from '../components/LoginForm';
-import { BiometricModal } from '../components/BiometricModal';
-import { TenantModal } from '../components/TenantModal';
-import { AuthService } from '../services/api/AuthService';
-import { TenantService } from '../services/api/TenantService';
-import { BiometricService } from '../services/api/BiometricService';
-import { getDashboardUrl } from '../services/api/config';
-import firebase from '@react-native-firebase/app';
+import { SessionService } from '../../services/session';
+import { LoginForm } from '../../components/LoginForm';
+import { BiometricModal } from '../../components/BiometricModal';
+import { TenantModal } from '../../components/TenantModal';
+import { AuthService } from '../../services/api/AuthService';
+import { TenantService } from '../../services/api/TenantService';
+import { BiometricService } from '../../services/api/BiometricService';
+import { getDashboardUrl } from '../../services/api/config';
+import { NotificationService } from '../../services/NotificationService';
 // Create biometric instance once
 const rnBiometrics = new ReactNativeBiometrics();
 
@@ -33,7 +33,6 @@ export default function LoginScreen({ navigation }) {
   const [isEnrollingBiometric, setIsEnrollingBiometric] = useState(false);
   const [tempCredentials, setTempCredentials] = useState(null);
 
-  console.log('sds',firebase.app().name);
 
   // Check for auto-login on component mount
         useEffect(() => {
@@ -99,6 +98,19 @@ export default function LoginScreen({ navigation }) {
               };
 
               initBiometrics();
+              
+              // Setup notifications and get FCM token
+              const setupNotifications = async () => {
+                const { permissionGranted, fcmToken } = await NotificationService.setupNotifications();
+                
+                if (permissionGranted && fcmToken) {
+                  console.log('📱 Notification setup complete. Token:', fcmToken);
+                  // You can send this token to your backend server here
+                  // await AuthService.sendFCMToken(fcmToken);
+                }
+              };
+              
+              setupNotifications();
             }, []);
 
             // Handle biometric login
