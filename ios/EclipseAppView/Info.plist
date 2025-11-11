@@ -22,6 +22,13 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>blob</string>
+		<string>data</string>
+		<string>http</string>
+		<string>https</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -31,16 +38,21 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Eclipse needs access to your camera so you can capture and upload your profile photo, as well as photos of documents for verification or assigned tasks.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Eclipse needs access to Face ID to securely verify your identity and allow quick, secure sign-in to your account.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
-	<key>NSCameraUsageDescription</key>
-	<string>Eclipse needs access to your camera so you can capture and upload your profile photo, as well as photos of documents for verification or assigned tasks.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Eclipse uses the photo library so you can select certificates, documents, or assignment files to upload in the app.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Eclipse uses the microphone when recording videos with audio for assignment or document submissions.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Eclipse uses the photo library so you can select certificates, documents, or assignment files to upload in the app.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string></string>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -55,12 +67,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>LSApplicationQueriesSchemes</key>
-	<array>
-		<string>blob</string>
-		<string>data</string>
-		<string>http</string>
-		<string>https</string>
-	</array>
 </dict>
 </plist>
