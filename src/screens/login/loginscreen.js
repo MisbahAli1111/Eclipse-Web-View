@@ -1,5 +1,4 @@
 
-// screens/LoginScreen.js
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,9 +22,6 @@ export default function LoginScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showTenantModal, setShowTenantModal] = useState(false);
   const [tenants, setTenants] = useState([]);
-  const [showWebView, setShowWebView] = useState(false);
-  const [webViewUrl, setWebViewUrl] = useState('');
-  // NEW: Biometric state variables
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [biometricType, setBiometricType] = useState(null);
   const [isBiometricChecked, setIsBiometricChecked] = useState(false); // NEW
@@ -52,66 +48,58 @@ export default function LoginScreen({ navigation }) {
               checkAutoLogin();
             }, [navigation]);
 
-            // App state handler
-            useEffect(() => {
-              const handleAppStateChange = async (nextAppState) => {
+
+
+            const initBiometrics = async () => {
+              try {
+                const { available, biometryType } = await rnBiometrics.isSensorAvailable();
                 
-                if (nextAppState === 'active') {
-                  
-                  const isValid = await SessionService.isSessionValid();
-                  
-                  if (!isValid) {
-                    await SessionService.clearSession();
-                    setShowWebView(false);
-                  }
+                console.log('[Login] Biometric availability:', { available, biometryType });
+                
+                setIsBiometricSupported(available);
+                setBiometricType(biometryType);
+                
+                const credentials = await AuthService.getSavedCredentials();
+                console.log('[Login] Saved credentials found:', !!credentials);
+                
+                if (credentials) {
+                  setEmail(credentials.username);
                 }
-              };
+              } catch (error) {
+                console.error('[Login] Biometric initialization error:', error);
+              } finally {
+                setIsBiometricChecked(true);
+              }
+            };
 
-              const subscription = AppState.addEventListener('change', handleAppStateChange);
-              return () => {
-                subscription.remove();
-              };
-            }, []);
-
-            // Biometrics initialization
-            useEffect(() => {
-              const initBiometrics = async () => {
-                try {
-                  const { available, biometryType } = await rnBiometrics.isSensorAvailable();
-                  
-                  console.log('[Login] Biometric availability:', { available, biometryType });
-                  
-                  setIsBiometricSupported(available);
-                  setBiometricType(biometryType);
-                  
-                  const credentials = await AuthService.getSavedCredentials();
-                  console.log('[Login] Saved credentials found:', !!credentials);
-                  
-                  if (credentials) {
-                    setEmail(credentials.username);
-                  }
-                } catch (error) {
-                  console.error('[Login] Biometric initialization error:', error);
-                } finally {
-                  setIsBiometricChecked(true);
-                }
-              };
-
-              initBiometrics();
-              
-              // Setup notifications and get FCM token
+                          // Setup notifications and get FCM token
               const setupNotifications = async () => {
                 const { permissionGranted, fcmToken } = await NotificationService.setupNotifications();
                 
                 if (permissionGranted && fcmToken) {
-                  console.log('📱 Notification setup complete. Token:', fcmToken);
-                  // You can send this token to your backend server here
-                  // await AuthService.sendFCMToken(fcmToken);
+                  console.log('Notification setup complete. Token:', fcmToken);
+                }
+              };
+
+              const handleAppStateChange = async (nextAppState) => {
+                if (nextAppState === 'active') {
+                  const isValid = await SessionService.isSessionValid();
+                  if (!isValid) {
+                    await SessionService.clearSession();
+                  }
                 }
               };
               
-              setupNotifications();
-            }, []);
+              useEffect(() => {
+                initBiometrics();
+                setupNotifications();
+              
+                const subscription = AppState.addEventListener('change', handleAppStateChange);
+              
+                return () => {
+                  subscription.remove();
+                };
+              }, []);
 
             // Handle biometric login
             const handleBiometricLogin = async () => {
@@ -148,8 +136,7 @@ export default function LoginScreen({ navigation }) {
                     console.log('[Login] Attempting Face ID login with:', credentials.username);
                     const { tenants, count } = await TenantService.getTenants(credentials.username, credentials.password);
                     
-                    console.log('[Login] Face ID tenant fetch successful:', { count, tenants: tenants?.length });
-                    
+                   
                     setTenants(tenants);
                     if (count === 1) {
                       const { token, webViewUrl } = await AuthService.getToken(tenants[0].tenant_id, credentials.username, credentials.password);
@@ -206,11 +193,8 @@ export default function LoginScreen({ navigation }) {
               setIsLoading(true);
 
               try {
-                const { token, webViewUrl } = await AuthService.getToken(tenant.tenant_id, email, password);
-                console.log('[Login] Tenant selection successful:', { token, webViewUrl });
-                
-                setWebViewUrl(webViewUrl);
-                setShowWebView(true);
+                await AuthService.getToken(tenant.tenant_id, email, password);
+     
                 navigation.replace('Dashboard');
               } catch (error) {
                 console.error('[Login] Tenant selection error:', error);
@@ -230,10 +214,8 @@ export default function LoginScreen({ navigation }) {
 
               setIsLoading(true);
               try {
-                console.log('[Login] Attempting regular login with:', email);
                 const { tenants, count } = await TenantService.getTenants(email , password);
                 
-                console.log('[Login] Regular login successful:', { count, tenants: tenants?.length });
                 
                 setTenants(tenants);
                 
@@ -333,9 +315,7 @@ export default function LoginScreen({ navigation }) {
               }
             };
                         
-
-
-             const proceedAfterEnrollment = () => {
+            const proceedAfterEnrollment = () => {
               if (tenants.length === 1) {
                 handleTenantSelect(tenants[0]);
               } else if (tenants.length > 1) {
@@ -390,19 +370,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  // webview: {
-  //   flex: 1,
-  //   width: '100%',
-  //   height: '100%',
-  // },
   container: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 30,
   },
-  // webviewContainer: {
-  //   padding: 0,
-  //   paddingHorizontal: 0,
-  // },
-  
 });
