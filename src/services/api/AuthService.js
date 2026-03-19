@@ -1,9 +1,49 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Keychain from 'react-native-keychain';
 import { SessionService } from '../session';
-import { getAuthUrl, getDashboardUrl } from './config';
+import { getAuthUrl, getDashboardUrl, getLoginUrl } from './config';
+
+const PLAY_TENANT_ID = 'bronze';
 
 export const AuthService = {
+
+  /** New play flow: single login API, returns token + full response; saves session and login response for WebView. */
+  async login(email, password) {
+    try {
+      const loginUrl = getLoginUrl();
+      const response = await fetch(loginUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success || !data?.data?.token) {
+        throw new Error(data.message || data?.data?.message || 'Login failed');
+      }
+
+      const token = data.data.token;
+      await SessionService.saveSession(PLAY_TENANT_ID, email, token);
+      await AsyncStorage.multiSet([
+        ['@current_tenant', PLAY_TENANT_ID],
+        ['@user_email', email],
+        ['@last_active', Date.now().toString()],
+        ['@auth_token', token],
+        ['@login_response', JSON.stringify(data)],
+      ]);
+
+      const webViewUrl = getDashboardUrl(PLAY_TENANT_ID);
+      return {
+        success: true,
+        token,
+        webViewUrl,
+        loginData: data,
+      };
+    } catch (error) {
+      throw error;
+    }
+  },
 
   async getToken(tenantId, email, password) {
     try {

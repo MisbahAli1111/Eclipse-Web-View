@@ -9,8 +9,41 @@ import Loader from '../../components/Loader';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import RNFS from 'react-native-fs';
 
+const escapeForJs = (s) => (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r/g, '\\r').replace(/\n/g, '\\n');
+
+const buildLocalStorageInjectScript = (token, loginResponseRaw) => {
+  let script = '';
+  if (token) {
+    const t = escapeForJs(token);
+    script += `localStorage.setItem('authToken','${t}');sessionStorage.setItem('authToken','${t}');`;
+    script += `localStorage.setItem('accessToken','${t}');sessionStorage.setItem('accessToken','${t}');`;
+  }
+  if (loginResponseRaw) {
+    try {
+      const data = JSON.parse(loginResponseRaw);
+      const d = data?.data || data;
+      if (d) {
+        if (d.access_info != null) script += `localStorage.setItem('accessInfo','${escapeForJs(JSON.stringify(d.access_info))}');`;
+        if (d.token != null) script += `localStorage.setItem('accessToken','${escapeForJs(d.token)}');`;
+        if (d.remember_token != null) script += `localStorage.setItem('refreshToken','${escapeForJs(d.remember_token)}');`;
+        if (d.token_type != null) script += `localStorage.setItem('tokenType','${escapeForJs(d.token_type)}');`;
+        if (d.user != null) script += `localStorage.setItem('user','${escapeForJs(JSON.stringify(d.user))}');`;
+        if (d.permissions != null) script += `localStorage.setItem('permissions','${escapeForJs(JSON.stringify(d.permissions))}');`;
+        if (d.date_format != null) script += `localStorage.setItem('date_format','${escapeForJs(d.date_format)}');`;
+        if (d.time_format != null) script += `localStorage.setItem('time_format','${escapeForJs(d.time_format)}');`;
+        if (d.timezone_id != null) script += `localStorage.setItem('selected_timezone','${escapeForJs(d.timezone_id)}');`;
+        script += `localStorage.setItem('dashboard_filter_presets','[]');`;
+        script += `window.__LOGIN_RESPONSE__=JSON.parse('${escapeForJs(loginResponseRaw)}');`;
+      }
+    } catch (e) {}
+  }
+  return script;
+};
+
 const DashboardScreen = ({ navigation }) => {
   const [webViewUrl, setWebViewUrl] = useState('');
+  const [authToken, setAuthToken] = useState('');
+  const [loginResponseRaw, setLoginResponseRaw] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const webViewRef = useRef(null);
@@ -346,7 +379,7 @@ const DashboardScreen = ({ navigation }) => {
     const loadDashboard = async () => {
       try {
         const isValid = await SessionService.isSessionValid();
-        
+
         if (!isValid) {
           await SessionService.clearSession();
           navigation.replace('Login');
@@ -354,12 +387,16 @@ const DashboardScreen = ({ navigation }) => {
         }
 
         const tenantId = await SessionService.getTenantId();
-        
+
         if (!tenantId) {
           throw new Error('No tenant information found');
         }
 
         const url = getDashboardUrl(tenantId);
+        const token = await AsyncStorage.getItem('@auth_token');
+        const loginData = await AsyncStorage.getItem('@login_response');
+        setAuthToken(token || '');
+        setLoginResponseRaw(loginData || '');
         setWebViewUrl(url);
         setIsLoading(false);
         
@@ -390,11 +427,7 @@ const DashboardScreen = ({ navigation }) => {
   // This prevents blank WebView after long inactivity (2+ hours)
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
-      console.log('AppState changed to:', nextAppState);
-      
       if (nextAppState === 'active') {
-        console.log('App resumed from background - reloading WebView to recover from potential blank state');
-        
         // Reload WebView to recover from:
         // 1. Killed WebView process (iOS WKWebView suspension)
         // 2. Destroyed WebView under memory pressure (Android)
@@ -413,8 +446,7 @@ const DashboardScreen = ({ navigation }) => {
   const handleNavigationChange = async (navState) => {
     setIsLoading(navState.loading);
     
-    const url = navState.url;
- 
+    const url = navState.url || '';
     if (url.includes('/login')) {
       await SessionService.clearSession();
       navigation.reset({
@@ -474,6 +506,51 @@ const DashboardScreen = ({ navigation }) => {
         event.preventDefault(); // Prevent the error from bubbling up
         return true;
       });
+
+      // 0. Intercept WebView API calls (fetch + XHR) and post to React Native for console logging
+      (function() {
+        var report = function(obj) {
+          try {
+            window.ReactNativeWebView.postMessage('WEBVIEW_API:' + JSON.stringify(obj));
+          } catch (e) {}
+        };
+        var origFetch = window.fetch;
+        if (origFetch) {
+          window.fetch = function(url, opts) {
+            var method = (opts && opts.method) || 'GET';
+            var urlStr = typeof url === 'string' ? url : (url && url.url) || '';
+            return origFetch.apply(this, arguments).then(function(res) {
+              report({ type: 'fetch', method: method, url: urlStr, status: res.status });
+              return res;
+            }, function(err) {
+              report({ type: 'fetch', method: method, url: urlStr, error: String(err && err.message) });
+              throw err;
+            });
+          };
+        }
+        var XHR = window.XMLHttpRequest;
+        if (XHR) {
+          var origOpen = XHR.prototype.open;
+          var origSend = XHR.prototype.send;
+          XHR.prototype.open = function(method, url) {
+            this._apiMethod = method;
+            this._apiUrl = url;
+            return origOpen.apply(this, arguments);
+          };
+          XHR.prototype.send = function() {
+            var self = this;
+            var method = self._apiMethod || 'GET';
+            var url = self._apiUrl || '';
+            self.addEventListener('load', function() {
+              report({ type: 'xhr', method: method, url: url, status: self.status });
+            });
+            self.addEventListener('error', function() {
+              report({ type: 'xhr', method: method, url: url, error: 'Network error' });
+            });
+            return origSend.apply(this, arguments);
+          };
+        }
+      })();
 
       // 1. First check if token exists in localStorage
       const existingToken = window.localStorage.getItem('authToken');
@@ -671,27 +748,28 @@ const DashboardScreen = ({ navigation }) => {
 
   const handleWebViewMessage = async (event) => {
     const message = event.nativeEvent.data;
-    console.log('WebView message received:', message);
 
     if (message === 'NEED_TOKEN_INJECTION') {
       try {
         const token = await AsyncStorage.getItem('@auth_token');
-        if (token) {
-          const injectionScript = `
-            try {
-              window.localStorage.setItem('authToken', '${token.replace(/'/g, "\\'")}');
-              window.sessionStorage.setItem('authToken', '${token.replace(/'/g, "\\'")}');
-              window.ReactNativeWebView.postMessage('TOKEN_INJECTED');
-            } catch (error) {
-              window.ReactNativeWebView.postMessage('INJECTION_ERROR:' + error.message);
-            }
-            true;
-          `;
-          webViewRef.current?.injectJavaScript(injectionScript);
-        }
+        const raw = await AsyncStorage.getItem('@login_response');
+        const script = buildLocalStorageInjectScript(token, raw);
+        const injectionScript = `try{${script}window.ReactNativeWebView.postMessage('TOKEN_INJECTED');}catch(e){window.ReactNativeWebView.postMessage('INJECTION_ERROR:'+e.message);}true;`;
+        webViewRef.current?.injectJavaScript(injectionScript);
       } catch (error) {
-        console.error('Token injection failed:', error);
       }
+    } else if (message.startsWith('WEBVIEW_API:')) {
+      try {
+        const payload = JSON.parse(message.replace('WEBVIEW_API:', ''));
+        const { type, method, url, status, error } = payload;
+        if (status != null) {
+          console.log(`[WebView API] ${type.toUpperCase()} ${method} ${url} -> ${status}`);
+        } else if (error) {
+          console.log(`[WebView API] ${type.toUpperCase()} ${method} ${url} -> ERROR: ${error}`);
+        } else {
+          console.log(`[WebView API] ${type.toUpperCase()} ${method} ${url}`);
+        }
+      } catch (e) {}
     } else if (message === 'FILE_INPUT_CLICKED') {
       console.log('User clicked file input - requesting permissions now');
       const hasPermissions = await requestPermissions();
@@ -774,6 +852,7 @@ const DashboardScreen = ({ navigation }) => {
     );
   }
 
+  const storageInjectBeforeLoad = buildLocalStorageInjectScript(authToken, loginResponseRaw);
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -781,7 +860,11 @@ const DashboardScreen = ({ navigation }) => {
           <>
             <WebView
               ref={webViewRef}
-              source={{ uri: webViewUrl }}
+              source={{
+                uri: webViewUrl,
+                ...(authToken ? { headers: { Authorization: 'Bearer ' + authToken } } : {}),
+              }}
+              injectedJavaScriptBeforeContentLoaded={storageInjectBeforeLoad ? `(function(){${storageInjectBeforeLoad}})();` : undefined}
               style={styles.webview}
               javaScriptEnabled={true}
               domStorageEnabled={true}

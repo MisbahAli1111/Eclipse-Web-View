@@ -7,7 +7,8 @@ const SESSION_CONFIG = {
     TENANT_ID: '@tenant_id',
     AUTH_TOKEN: '@auth_token',
     LAST_ACTIVE: '@last_active',
-    USER_EMAIL: '@user_email'
+    USER_EMAIL: '@user_email',
+    LOGIN_RESPONSE: '@login_response',
   }
 };
 
@@ -27,10 +28,7 @@ export const SessionService = {
   async isSessionValid() {
     const lastActive = await AsyncStorage.getItem(SESSION_CONFIG.KEYS.LAST_ACTIVE);
     const tenantId = await AsyncStorage.getItem(SESSION_CONFIG.KEYS.TENANT_ID);
-    
-    if (!lastActive || !tenantId) return false;
-    
-    return (Date.now() - parseInt(lastActive)) <= SESSION_CONFIG.INACTIVITY_LIMIT;
+    return !!(lastActive && tenantId && (Date.now() - parseInt(lastActive, 10)) <= SESSION_CONFIG.INACTIVITY_LIMIT);
   },
 
   // Clear session
@@ -42,7 +40,9 @@ export const SessionService = {
       key.startsWith('@last_active') || 
       key.startsWith('@current_tenant') ||
       key.startsWith('@user_email') ||
-      key.startsWith('@auth_token')
+      key.startsWith('@auth_token') ||
+      key.startsWith('@tenant_id') ||
+      key.startsWith('@login_response')
     );
     
     // Clear all session-related keys

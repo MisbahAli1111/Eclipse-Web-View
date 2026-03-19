@@ -37,5 +37,11 @@ export const API_URLS = {
     tenantSearch: {
       search: 'https://qavi.eclipsescheduling.com/api/tenant-users/search',
     }
+  },
+
+  // Play environment: single login API, then admin dashboard
+  play: {
+    login: 'https://bronze.play.eclipsescheduling.com/api/auth/login',
+    dashboard: 'https://bronze.play.eclipsescheduling.com/admin/dashboard',
   }
 };
