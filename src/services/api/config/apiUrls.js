@@ -28,14 +28,14 @@ export const API_URLS = {
   
   production: {
     tenant: {
-      base: (tenantId) => `https://${tenantId}.eclipsescheduling.com`,
+      base: (tenantId) => `https://${tenantId}.v4.eclipsescheduling.com`,
       auth: {
-        token: (tenantId) => `https://${tenantId}.eclipsescheduling.com/api/auth/token`,
+        token: (tenantId) => `https://${tenantId}.v4.eclipsescheduling.com/api/auth/login`,
       },
-      dashboard: (tenantId) => `https://${tenantId}.eclipsescheduling.com/v1/provider/dashboard`,
+      dashboard: (tenantId) => `https://${tenantId}.v4.eclipsescheduling.com/`,
     },
     tenantSearch: {
-      search: 'https://qavi.eclipsescheduling.com/api/tenant-users/search',
+      search: 'https://qavi.v4.eclipsescheduling.com/api/tenant-users/search',
     }
   }
 };

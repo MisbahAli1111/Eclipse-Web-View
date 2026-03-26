@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, BackHandler, ActivityIndicator, Alert, Platform, PermissionsAndroid, Linking, Share, AppState } from 'react-native';
+import { View, Text, StyleSheet, BackHandler, ActivityIndicator, Alert, Platform, PermissionsAndroid, Linking, Share, AppState, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
@@ -9,11 +9,96 @@ import Loader from '../../components/Loader';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import RNFS from 'react-native-fs';
 
+const SESSION_STORAGE_KEYS = [
+  '@auth_token', '@remember_token', '@token_type',
+  '@time_format', '@date_format', '@timezone_id',
+  '@user_data', '@tenant_data', '@permissions', '@access_info',
+];
+
+const buildPreloadScript = (session) => {
+  if (!session?.['@auth_token']) {
+    return 'true;';
+  }
+  const safe = (v) => (v || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const token        = safe(session['@auth_token']);
+  const remToken     = safe(session['@remember_token'] || '');
+  const tokenType    = safe(session['@token_type'] || 'Bearer');
+  const timeFormat   = safe(session['@time_format'] || '');
+  const dateFormat   = safe(session['@date_format'] || '');
+  const timezoneId   = safe(session['@timezone_id'] || '');
+  const userData     = safe(session['@user_data'] || '');
+  const tenantData   = safe(session['@tenant_data'] || '');
+  const permissions  = safe(session['@permissions'] || '');
+  const accessInfo   = safe(session['@access_info'] || '');
+
+  return `
+    (function() {
+      try {
+        // Write token under common key aliases used by web apps.
+        var tokenValue = '${token}';
+        var rememberToken = '${remToken}';
+
+        // Plain token aliases
+        localStorage.setItem('authToken',     tokenValue);
+        localStorage.setItem('accessToken',   tokenValue);
+        localStorage.setItem('auth_token',    tokenValue);
+        localStorage.setItem('token',         tokenValue);
+        localStorage.setItem('access_token',  tokenValue);
+        localStorage.setItem('bearer_token',  tokenValue);
+        localStorage.setItem('sanctum_token', tokenValue);
+
+        sessionStorage.setItem('authToken',    tokenValue);
+        sessionStorage.setItem('accessToken',  tokenValue);
+        sessionStorage.setItem('auth_token',   tokenValue);
+        sessionStorage.setItem('token',        tokenValue);
+        sessionStorage.setItem('access_token', tokenValue);
+
+        // Remember-token aliases
+        if (rememberToken) {
+          localStorage.setItem('rememberToken',  rememberToken);
+          localStorage.setItem('remember_token', rememberToken);
+        }
+
+        // User / settings fields
+        if ('${timeFormat}')   localStorage.setItem('timeFormat',   '${timeFormat}');
+        if ('${timeFormat}')   localStorage.setItem('time_format',  '${timeFormat}');
+        if ('${dateFormat}')   localStorage.setItem('dateFormat',   '${dateFormat}');
+        if ('${dateFormat}')   localStorage.setItem('date_format',  '${dateFormat}');
+        if ('${timezoneId}')   localStorage.setItem('timezoneId',   '${timezoneId}');
+        if ('${timezoneId}')   localStorage.setItem('timezone_id',  '${timezoneId}');
+        if ('${tokenType}')    localStorage.setItem('tokenType',    '${tokenType}');
+        if ('${tokenType}')    localStorage.setItem('token_type',   '${tokenType}');
+        if ('${userData}')     localStorage.setItem('user',         '${userData}');
+        if ('${tenantData}')   localStorage.setItem('tenant',       '${tenantData}');
+        if ('${permissions}')  localStorage.setItem('permissions',  '${permissions}');
+        if ('${accessInfo}')   localStorage.setItem('accessInfo',   '${accessInfo}');
+
+        // ── Also write a combined auth object that some SPAs expect
+        try {
+          var authObj = {
+            token: tokenValue,
+            access_token: tokenValue,
+            token_type: '${tokenType}',
+            remember_token: rememberToken
+          };
+          localStorage.setItem('auth', JSON.stringify(authObj));
+        } catch(e2) {}
+      } catch(e) {}
+    })();
+    true;
+  `;
+};
+
 const DashboardScreen = ({ navigation }) => {
   const [webViewUrl, setWebViewUrl] = useState('');
+  const [sessionData, setSessionData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
   const webViewRef = useRef(null);
+  const hasLoadedSuccessfully = useRef(false);
+  const lastBackgroundAt = useRef(0);
+  const suppressNextResumeReload = useRef(false);
 
   const requestPermissions = async (includeDownload = false) => {
     try {
@@ -240,85 +325,6 @@ const DashboardScreen = ({ navigation }) => {
     }
   };
 
-  // Handle blob downloads (base64 data)
-  // const handleBlobDownload = async (fileName, base64Data, mimeType) => {
-  //   try {
-  //     console.log('Blob download requested:', fileName);
-  //     console.log('RNFS paths:', {
-  //       DocumentDirectoryPath: RNFS.DocumentDirectoryPath,
-  //       DownloadDirectoryPath: RNFS.DownloadDirectoryPath,
-  //       CachesDirectoryPath: RNFS.CachesDirectoryPath
-  //     });
-      
-  //     // Request download permissions first
-  //     const hasPermissions = await requestPermissions(true);
-  //     if (!hasPermissions) {
-  //       Alert.alert('Permission Required', 'Storage permission is needed to download files. Please enable it in Settings.');
-  //       return;
-  //     }
-
-  //     // Ensure unique filename
-  //     const timestamp = Date.now();
-  //     const fileExtension = fileName.includes('.') ? fileName.split('.').pop() : 'pdf';
-  //     const baseFileName = fileName.includes('.') ? fileName.replace(/\.[^/.]+$/, "") : fileName.replace(/\.[^/.]+$/, "");
-  //     const uniqueFileName = `${baseFileName}_${timestamp}.${fileExtension}`;
-
-  //     // Download path - save to accessible location
-  //     let downloadDest;
-  //     if (Platform.OS === 'android') {
-  //       downloadDest = `${RNFS.DownloadDirectoryPath}/${uniqueFileName}`;
-  //     } else {
-  //       // On iOS, save to temp location for sharing
-  //       downloadDest = `${RNFS.CachesDirectoryPath}/${uniqueFileName}`;
-  //     }
-
-  //     console.log('Saving blob to:', downloadDest);
-  //     console.log('Base64 data length:', base64Data.length);
-  //     console.log('MIME type:', mimeType);
-
-  //     // Check if directory exists and create if needed
-  //     const dirPath = Platform.OS === 'android' 
-  //       ? RNFS.DownloadDirectoryPath 
-  //       : RNFS.CachesDirectoryPath;
-      
-  //     const dirExists = await RNFS.exists(dirPath);
-  //     console.log('Directory exists:', dirExists, dirPath);
-      
-  //     if (!dirExists) {
-  //       await RNFS.mkdir(dirPath);
-  //       console.log('Created directory:', dirPath);
-  //     }
-
-  //     // Test write a simple text file first
-  //     const testPath = `${dirPath}/test.txt`;
-  //     try {
-  //       await RNFS.writeFile(testPath, 'Hello World', 'utf8');
-  //       const testExists = await RNFS.exists(testPath);
-  //       console.log('Test file write successful:', testExists);
-  //       if (testExists) {
-  //         await RNFS.unlink(testPath); // Clean up test file
-  //       }
-  //     } catch (testError) {
-  //       console.error('Test file write failed:', testError);
-  //     }
-
-  //     // Write base64 data to file
-  //     console.log('Writing base64 data...');
-  //     await RNFS.writeFile(downloadDest, base64Data, 'base64');
-  //     console.log('Base64 write completed');
-      
-  //     // Verify file was written
-  //     const fileExists = await RNFS.exists(downloadDest);
-  //     const fileStats = fileExists ? await RNFS.stat(downloadDest) : null;
-      
-  //    shareFile(downloadDest, uniqueFileName)
-   
-
-  //   } catch (error) {
-  //     console.error('Blob download error:', error);
-  //     Alert.alert('Download Failed', `Failed to download file: ${error.message}`);
-  //   }
-  // };
 
   // Save file to user accessible location
   const shareFile = async (filePath, fileName) => {
@@ -359,6 +365,10 @@ const DashboardScreen = ({ navigation }) => {
           throw new Error('No tenant information found');
         }
 
+        const pairs = await AsyncStorage.multiGet(SESSION_STORAGE_KEYS);
+        const session = Object.fromEntries(pairs.map(([k, v]) => [k, v]));
+        setSessionData(session);
+
         const url = getDashboardUrl(tenantId);
         setWebViewUrl(url);
         setIsLoading(false);
@@ -390,16 +400,25 @@ const DashboardScreen = ({ navigation }) => {
   // This prevents blank WebView after long inactivity (2+ hours)
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
-      console.log('AppState changed to:', nextAppState);
-      
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        lastBackgroundAt.current = Date.now();
+        return;
+      }
+
       if (nextAppState === 'active') {
-        console.log('App resumed from background - reloading WebView to recover from potential blank state');
-        
-        // Reload WebView to recover from:
-        // 1. Killed WebView process (iOS WKWebView suspension)
-        // 2. Destroyed WebView under memory pressure (Android)
-        // 3. Expired session cookies (Laravel session timeout)
-        webViewRef.current?.reload();
+        const elapsedMs = Date.now() - (lastBackgroundAt.current || Date.now());
+
+        // Returning from file picker/media picker can briefly background the app.
+        // Do not reload in that case or the in-progress upload gets reset.
+        if (suppressNextResumeReload.current && elapsedMs < 15000) {
+          suppressNextResumeReload.current = false;
+          return;
+        }
+
+        // Only reload after longer inactivity to recover potentially killed WebView.
+        if (elapsedMs > 2 * 60 * 1000) {
+          webViewRef.current?.reload();
+        }
       }
     };
 
@@ -414,47 +433,50 @@ const DashboardScreen = ({ navigation }) => {
     setIsLoading(navState.loading);
     
     const url = navState.url;
+
+    if (!navState.loading && !url.includes('/login')) {
+      hasLoadedSuccessfully.current = true;
+    }
  
     if (url.includes('/login')) {
-      await SessionService.clearSession();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }]
-      });
+      // Only treat as real logout if the dashboard was previously loaded ok.
+      // On the first load the web app may briefly redirect to /login before our
+      // preload script has set the token - ignore that race condition.
+      if (hasLoadedSuccessfully.current) {
+        await SessionService.clearSession();
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login' }]
+        });
+      }
     }
   };
 
   const handleError = (syntheticEvent) => {
     const { nativeEvent } = syntheticEvent;
     console.error('WebView error:', nativeEvent);
-    
-    // Don't show error for minor issues like permission-related JavaScript errors
+
     if (nativeEvent.description && nativeEvent.description.includes('client-side exception')) {
-      console.log('Handling client-side exception gracefully');
       return;
     }
-    
-    // Check if this is a network error that can be recovered by reloading
+
     const isNetworkError = nativeEvent.description && (
       nativeEvent.description.includes('ERR_INTERNET_DISCONNECTED') ||
       nativeEvent.description.includes('ERR_NETWORK_CHANGED') ||
       nativeEvent.description.includes('ERR_CONNECTION_TIMED_OUT') ||
       nativeEvent.description.includes('ERR_CONNECTION_REFUSED') ||
+      nativeEvent.description.includes('ERR_NAME_NOT_RESOLVED') ||
       nativeEvent.description.includes('net::ERR_')
     );
-    
+
     if (isNetworkError) {
-      console.log('Network error detected - attempting reload:', nativeEvent.description);
-      // Attempt to reload after a short delay
-      setTimeout(() => {
-        webViewRef.current?.reload();
-      }, 1000);
+      setIsOffline(true);
+      setIsLoading(false);
       return;
     }
-    
+
     setHasError(true);
     setIsLoading(false);
-    Alert.alert('Error', 'Failed to load dashboard content');
   };
 
   const injectJavaScript = `
@@ -671,29 +693,52 @@ const DashboardScreen = ({ navigation }) => {
 
   const handleWebViewMessage = async (event) => {
     const message = event.nativeEvent.data;
+
     console.log('WebView message received:', message);
 
     if (message === 'NEED_TOKEN_INJECTION') {
       try {
-        const token = await AsyncStorage.getItem('@auth_token');
-        if (token) {
-          const injectionScript = `
-            try {
-              window.localStorage.setItem('authToken', '${token.replace(/'/g, "\\'")}');
-              window.sessionStorage.setItem('authToken', '${token.replace(/'/g, "\\'")}');
-              window.ReactNativeWebView.postMessage('TOKEN_INJECTED');
-            } catch (error) {
-              window.ReactNativeWebView.postMessage('INJECTION_ERROR:' + error.message);
-            }
-            true;
-          `;
-          webViewRef.current?.injectJavaScript(injectionScript);
-        }
+        const keys = [
+          '@auth_token', '@remember_token', '@token_type',
+          '@time_format', '@date_format', '@timezone_id',
+          '@user_data', '@tenant_data', '@permissions', '@access_info',
+        ];
+        const pairs = await AsyncStorage.multiGet(keys);
+        const session = Object.fromEntries(pairs.map(([k, v]) => [k, v]));
+
+        const token = session['@auth_token'];
+        if (!token) return;
+
+        const safe = (v) => (v || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+        const injectionScript = `
+          try {
+            window.localStorage.setItem('authToken', '${safe(token)}');
+            window.sessionStorage.setItem('authToken', '${safe(token)}');
+
+            ${session['@remember_token'] ? `window.localStorage.setItem('rememberToken', '${safe(session['@remember_token'])}');` : ''}
+            ${session['@token_type']     ? `window.localStorage.setItem('tokenType', '${safe(session['@token_type'])}');` : ''}
+            ${session['@time_format']    ? `window.localStorage.setItem('timeFormat', '${safe(session['@time_format'])}');` : ''}
+            ${session['@date_format']    ? `window.localStorage.setItem('dateFormat', '${safe(session['@date_format'])}');` : ''}
+            ${session['@timezone_id']    ? `window.localStorage.setItem('timezoneId', '${safe(session['@timezone_id'])}');` : ''}
+            ${session['@user_data']      ? `window.localStorage.setItem('user', '${safe(session['@user_data'])}');` : ''}
+            ${session['@tenant_data']    ? `window.localStorage.setItem('tenant', '${safe(session['@tenant_data'])}');` : ''}
+            ${session['@permissions']    ? `window.localStorage.setItem('permissions', '${safe(session['@permissions'])}');` : ''}
+            ${session['@access_info']    ? `window.localStorage.setItem('accessInfo', '${safe(session['@access_info'])}');` : ''}
+
+            window.ReactNativeWebView.postMessage('TOKEN_INJECTED');
+          } catch (error) {
+            window.ReactNativeWebView.postMessage('INJECTION_ERROR:' + error.message);
+          }
+          true;
+        `;
+        webViewRef.current?.injectJavaScript(injectionScript);
       } catch (error) {
         console.error('Token injection failed:', error);
       }
     } else if (message === 'FILE_INPUT_CLICKED') {
       console.log('User clicked file input - requesting permissions now');
+      suppressNextResumeReload.current = true;
       const hasPermissions = await requestPermissions();
       console.log('Permission request result:', hasPermissions);
     } else if (message.startsWith('FILE_INPUT_CHANGED:')) {
@@ -756,11 +801,61 @@ const DashboardScreen = ({ navigation }) => {
     }
   };
 
+  if (isOffline) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.offlineContainer}>
+          <Text style={styles.offlineIcon}>📶</Text>
+          <Text style={styles.offlineTitle}>No Internet Connection</Text>
+          <Text style={styles.offlineSubtitle}>
+            Please check your Wi-Fi or mobile data and try again.
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setIsOffline(false);
+              setIsLoading(true);
+              setTimeout(() => webViewRef.current?.reload(), 300);
+            }}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.exitButton}
+            onPress={() => BackHandler.exitApp()}
+          >
+            <Text style={styles.exitButtonText}>Exit App</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (hasError) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Failed to load dashboard</Text>
+        <View style={styles.offlineContainer}>
+          <Text style={styles.offlineIcon}>⚠️</Text>
+          <Text style={styles.offlineTitle}>Something went wrong</Text>
+          <Text style={styles.offlineSubtitle}>
+            We couldn't load the dashboard. Please try again.
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setHasError(false);
+              setIsLoading(true);
+              setTimeout(() => webViewRef.current?.reload(), 300);
+            }}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.exitButton}
+            onPress={() => BackHandler.exitApp()}
+          >
+            <Text style={styles.exitButtonText}>Exit App</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -790,16 +885,14 @@ const DashboardScreen = ({ navigation }) => {
               onNavigationStateChange={handleNavigationChange}
               onError={handleError}
               onHttpError={handleError}
+              injectedJavaScriptBeforeContentLoaded={buildPreloadScript(sessionData)}
               injectedJavaScript={injectJavaScript}
               onMessage={handleWebViewMessage}
               onLoadStart={() => {}}
               onLoadEnd={({ nativeEvent }) => {
-                // Detect silent WebView failures (common after long inactivity)
-                if (nativeEvent.description === 'net::ERR_FAILED' || 
-                    nativeEvent.description?.includes('ERR_') ||
-                    nativeEvent.title === '') {
-                  console.log('WebView load failed silently - reloading:', nativeEvent.description);
-                  webViewRef.current?.reload();
+                if (nativeEvent.description === 'net::ERR_FAILED') {
+                  setIsOffline(true);
+                  setIsLoading(false);
                 }
               }}
               // File upload support
@@ -939,6 +1032,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
+  },
+  offlineContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 36,
+    backgroundColor: '#fff',
+  },
+  offlineIcon: {
+    fontSize: 56,
+    marginBottom: 20,
+  },
+  offlineTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  offlineSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: 36,
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 13,
+    paddingHorizontal: 48,
+    borderRadius: 10,
+    marginBottom: 14,
+    width: '100%',
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  exitButton: {
+    paddingVertical: 13,
+    paddingHorizontal: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    width: '100%',
+    alignItems: 'center',
+  },
+  exitButtonText: {
+    color: '#555',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 

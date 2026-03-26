@@ -3,9 +3,9 @@ import { API_URLS } from './apiUrls';
 // Environment Configuration
 // Change this to switch between environments: 'development', 'staging', or 'production'
 // const CURRENT_ENVIRONMENT = 'development';
-const CURRENT_ENVIRONMENT = 'staging';
+// const CURRENT_ENVIRONMENT = 'staging';
 
-// const CURRENT_ENVIRONMENT = 'production';
+const CURRENT_ENVIRONMENT = 'production';
 
 // Get the current environment's API URLs
 export const getApiUrls = () => {

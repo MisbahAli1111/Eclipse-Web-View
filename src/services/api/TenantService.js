@@ -2,7 +2,7 @@ import { getTenantSearchUrl } from './config';
 
 export const TenantService = {
   async getTenants(email, password) {
-    try {
+    try {      
       const response = await fetch(getTenantSearchUrl(), {
         method: 'POST',
         headers: {
@@ -13,6 +13,7 @@ export const TenantService = {
       });
 
       const data = await response.json();
+
       if (data.success) {
         return {
           success: true,

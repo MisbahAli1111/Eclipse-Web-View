@@ -16,24 +16,42 @@ export const AuthService = {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
-      
-      if (response.ok && data.token) {
-        await SessionService.saveSession(tenantId, email, data.token);
-        await AsyncStorage.multiSet([
-          ['@current_tenant', tenantId],
-          ['@user_email', email],
-          ['@last_active', Date.now().toString()],
-          ['@auth_token', data.token]
-        ]);
-        
+      const response_json = await response.json();
+      console.log('AuthService getToken response: Success', response_json);
+
+      if (response.ok && response_json.success && response_json.data?.token) {
+        const {
+          token,
+          remember_token,
+          token_type,
+          time_format,
+          date_format,
+          timezone_id,
+          user,
+          tenant,
+          permissions,
+          access_info,
+        } = response_json.data;
+
+        await SessionService.saveSession(tenantId, email, token, {
+          remember_token,
+          token_type,
+          time_format,
+          date_format,
+          timezone_id,
+          user,
+          tenant,
+          permissions,
+          access_info,
+        });
+
         return {
           success: true,
-          token: data.token,
-          webViewUrl: getDashboardUrl(tenantId)
+          token,
+          webViewUrl: getDashboardUrl(tenantId),
         };
       } else {
-        throw new Error(data.message || 'Failed to login');
+        throw new Error(response_json.message || 'Failed to login');
       }
     } catch (error) {
       throw error;
