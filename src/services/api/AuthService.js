@@ -1,61 +1,92 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Keychain from 'react-native-keychain';
 import { SessionService } from '../session';
 import { getAuthUrl, getDashboardUrl } from './config';
 
+/** Build session extras for admin-style (nested user) or provider-style (flat profile on data). */
+function sessionExtrasFromLoginData(data) {
+  const {
+    token: _token,
+    remember_token,
+    token_type,
+    time_format,
+    date_format,
+    timezone_id,
+    user,
+    tenant,
+    permissions,
+    access_info,
+    ...rest
+  } = data;
+
+  if (user != null && typeof user === 'object') {
+    return {
+      remember_token,
+      token_type,
+      time_format,
+      date_format,
+      timezone_id,
+      user,
+      tenant,
+      permissions,
+      access_info,
+    };
+  }
+
+  const hasProviderProfile =
+    rest.uid != null ||
+    rest.provider_id != null ||
+    rest.user_name != null;
+
+  return {
+    remember_token,
+    token_type,
+    time_format,
+    date_format,
+    timezone_id,
+    user: hasProviderProfile ? rest : undefined,
+    tenant,
+    permissions,
+    access_info,
+  };
+}
+
+function isLoginSuccess(response, body) {
+  const token = body?.data?.token;
+  if (!response.ok || !token) return false;
+  if (body.success === true) return true;
+  if (body.status_code === 200) return true;
+  return false;
+}
+
 export const AuthService = {
 
   async getToken(tenantId, email, password) {
-    try {
-      const tokenUrl = getAuthUrl(tenantId);
-      const response = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+    const tokenUrl = getAuthUrl(tenantId);
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const response_json = await response.json();
-      console.log('AuthService getToken response: Success', response_json);
+    const response_json = await response.json();
+    console.log('AuthService getToken response: Success', response_json);
 
-      if (response.ok && response_json.success && response_json.data?.token) {
-        const {
-          token,
-          remember_token,
-          token_type,
-          time_format,
-          date_format,
-          timezone_id,
-          user,
-          tenant,
-          permissions,
-          access_info,
-        } = response_json.data;
-
-        await SessionService.saveSession(tenantId, email, token, {
-          remember_token,
-          token_type,
-          time_format,
-          date_format,
-          timezone_id,
-          user,
-          tenant,
-          permissions,
-          access_info,
-        });
-
-        return {
-          success: true,
-          token,
-          webViewUrl: getDashboardUrl(tenantId),
-        };
-      } else {
-        throw new Error(response_json.message || 'Failed to login');
-      }
-    } catch (error) {
-      throw error;
+    if (!isLoginSuccess(response, response_json)) {
+      throw new Error(response_json.message || 'Failed to login');
     }
+
+    const { token } = response_json.data;
+    const extras = sessionExtrasFromLoginData(response_json.data);
+
+    await SessionService.saveSession(tenantId, email, token, extras);
+
+    return {
+      success: true,
+      token,
+      webViewUrl: getDashboardUrl(tenantId),
+    };
   },
 
   async saveCredentials(email, password) {
